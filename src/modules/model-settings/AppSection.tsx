@@ -35,6 +35,7 @@ type Draft = {
   showRawReasoning: boolean;
   saveReasoning: boolean;
   ocrLanguages: string;
+  autoOcr: boolean;
   translationTargetLanguage: string;
   showCostEstimate: boolean;
   allowExternalTranslationEngine: boolean;
@@ -58,6 +59,7 @@ function toDraft(view: ModelSettingsView): Draft {
     showRawReasoning: s.showRawReasoning,
     saveReasoning: s.saveReasoning,
     ocrLanguages: s.ocrLanguages,
+    autoOcr: s.autoOcr !== false,
     translationTargetLanguage: s.translationTargetLanguage,
     showCostEstimate: s.showCostEstimate,
     allowExternalTranslationEngine: s.allowExternalTranslationEngine,
@@ -180,6 +182,7 @@ export function AppSection({
           showRawReasoning: draft.showRawReasoning,
           saveReasoning: draft.saveReasoning,
           ocrLanguages: draft.ocrLanguages.trim() || "chi_sim+eng",
+          autoOcr: draft.autoOcr,
           translationTargetLanguage: draft.translationTargetLanguage.trim() || "zh-CN",
           showCostEstimate: draft.showCostEstimate,
           allowExternalTranslationEngine: draft.allowExternalTranslationEngine,
@@ -429,6 +432,16 @@ export function AppSection({
               onChange={(e) => update("saveReasoning", e.target.checked)}
             />
             保存思考记录(默认关闭;开启后可在隐私清除中删除)
+          </label>
+        </div>
+        <div className="settings-row">
+          <label className="settings-check">
+            <input
+              type="checkbox"
+              checked={draft.autoOcr}
+              onChange={(e) => update("autoOcr", e.target.checked)}
+            />
+            自动 OCR(默认开启):解析时和解析完成后自动识别无文本层/缺失页;只用本地 Tesseract,可暂停/继续/取消
           </label>
         </div>
         <div className="settings-row">

@@ -34,6 +34,9 @@ export function ReaderRegion({
 }) {
   const { client } = useServices();
   const queryClient = useQueryClient();
+  const readerViewport = useWorkspaceUi((state) =>
+    documentId === null ? undefined : state.readerViewport[documentId],
+  );
   const [fileBusy, setFileBusy] = useState(false);
   const [fileCheck, setFileCheck] = useState<FileCheckResult | null>(null);
   const [fileMessage, setFileMessage] = useState<{ kind: "info" | "error"; text: string } | null>(
@@ -410,7 +413,7 @@ export function ReaderRegion({
       </ReaderToolbarExtrasProvider>
       {documentId !== null &&
       activeVersionId !== null &&
-      (ocrStatus.data ?? []).some((row) => row.status !== "skipped") ? (
+      (parseStatus.data !== undefined || (ocrStatus.data ?? []).length > 0) ? (
         <div className="reader-ocr-progress">
           <PageOcrProgressPanel
             client={client}
@@ -418,13 +421,23 @@ export function ReaderRegion({
             versionId={activeVersionId}
             parseState={parseStatus.data?.parseState}
             ocr={ocrStatus.data ?? []}
+            pageCount={readerViewport?.pageCount}
+            currentGenerationId={parseStatus.data?.generationId}
           />
         </div>
       ) : null}
       <div className="reader-coverage" aria-label="页覆盖">
         <PageCoverageBar
           parseCoverage={parseStatus.data?.coverage}
-          ocr={ocrStatus.data ?? []}
+          ocr={(ocrStatus.data ?? []).filter((row) => {
+            const generationId = parseStatus.data?.generationId;
+            return (
+              generationId === undefined ||
+              row.generationId === undefined ||
+              row.generationId === generationId
+            );
+          })}
+          pageCount={readerViewport?.pageCount}
         />
       </div>
     </div>

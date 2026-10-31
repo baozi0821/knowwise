@@ -6,6 +6,8 @@ import type { EventBridge } from "./events/bridge";
 import type { BinaryChunk } from "../shared/generated/BinaryChunk";
 import type { ParseJobTicket } from "../shared/generated/ParseJobTicket";
 import type { PageOcrControlView } from "../shared/generated/PageOcrControlView";
+import type { PageOcrStatusView } from "../shared/generated/PageOcrStatusView";
+import type { ModelSettingsView } from "../shared/generated/ModelSettingsView";
 import type { ParserBatchInput } from "../shared/generated/ParserBatchInput";
 import type { ParseBridgePort } from "../workers/parser/protocol";
 import { decodeBase64 } from "../workers/parser/protocol";
@@ -154,6 +156,16 @@ async function salvageCanceledOcr(
   return payloadPages.length;
 }
 
+async function autoOcrEnabled(client: CommandClient): Promise<boolean> {
+  try {
+    const view = await client.call<ModelSettingsView>("settings_get", {});
+    return view.settings.autoOcr !== false;
+  } catch {
+    // 设置不可读时保持既有自动行为，不静默关闭 OCR。
+    return true;
+  }
+}
+
 async function prepareJob(
   port: ParseBridgePort,
   ticket: ParseJobTicket,
@@ -191,14 +203,37 @@ async function prepareJob(
       return true;
     };
     const ocrResults = new Map<number, OcrPageResult>();
+    const recognize = await autoOcrEnabled(client);
+    // 当前代次已完成且有块的页不再重跑 OCR；同时跳过其解析批次提交，
+    // 保留既有块 ID/内容。新代次（generationId 不同）不会命中此集合。
+    const alreadyCovered = new Set<number>();
+    try {
+      const statuses = await client.call<PageOcrStatusView[]>("page_ocr_get_status", {
+        documentId: ticket.documentId,
+        versionId: ticket.versionId,
+      });
+      for (const row of statuses) {
+        if (
+          row.generationId === ticket.generationId &&
+          (row.status === "completed" || row.status === "low_confidence") &&
+          row.blockCount > 0
+        ) {
+          alreadyCovered.add(row.pageNumber);
+        }
+      }
+    } catch {
+      // 状态不可读时按未覆盖处理，最多多跑一次 OCR。
+    }
+    const pagesToScan = source.pages.filter((page) => !alreadyCovered.has(page.pageNumber));
     try {
       await runPdfOcr({
         pdfDoc: source.pdfDoc,
-        pages: source.pages,
+        pages: pagesToScan,
         priorityPage,
         shouldStop: () => stopRequested,
         shouldPause: waitWhilePaused,
         results: ocrResults,
+        recognize,
         report: (entries: PageOcrReportEntry[]) =>
           client.call("page_ocr_report", {
             parseJobToken: ticket.token,
@@ -230,6 +265,7 @@ async function prepareJob(
     return {
       ticket,
       pdfPages: () => source.pages,
+      skipPages: alreadyCovered,
       cleanup: async () => {
         await source.pdfDoc.destroy?.();
       },

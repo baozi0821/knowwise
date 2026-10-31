@@ -69,6 +69,11 @@ saveReasoning: boolean,
  */
 ocrLanguages: string, 
 /**
+ * 自动 OCR(默认开启):PDF 解析时/解析完成后自动识别无文本层与缺失页。
+ * 关闭后只保留手动“识别所选页”。识别始终使用本地 Tesseract，不联网。
+ */
+autoOcr: boolean, 
+/**
  * 翻译目标语言(默认 zh-CN)。
  */
 translationTargetLanguage: string, 

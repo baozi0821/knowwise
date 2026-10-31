@@ -15,6 +15,8 @@ export type TicketPayload = {
   input?: string;
   /** PDF:逐页文本项提供器(pdfjs getTextContent 投影)。 */
   pdfPages?: () => PdfPageInput[];
+  /** 已完成且有 OCR 块的页:不重跑 OCR,也不重复提交解析批次。 */
+  skipPages?: ReadonlySet<number>;
   /** PDF 文档句柄等临时资源的释放(页图不落库)。 */
   cleanup?: () => Promise<void>;
 };
@@ -45,6 +47,7 @@ export function buildBatches(
   format: ParseJobTicket["format"],
   input: string,
   pdfPages?: () => PdfPageInput[],
+  skipPages?: ReadonlySet<number>,
 ): ParserBatchInput[] {
   if (format === "markdown") {
     const blocks = parseMarkdownToBlocks(input);
@@ -61,6 +64,7 @@ export function buildBatches(
     const blocks: ParserBatchInput["blocks"] = [];
     const regions: ParserBatchInput["regions"] = [];
     for (const page of pdfPages()) {
+      if (skipPages?.has(page.pageNumber)) continue;
       const out = parsePdfPage(page);
       blocks.push(...out.blocks);
       regions.push(...out.regions);
@@ -79,7 +83,12 @@ export function createParseJobRunner(port: ParseBridgePort) {
         if (job.ticket.format !== "pdf" && job.input === undefined) {
           input = await readAllInput(port, job.ticket);
         }
-        const batches = buildBatches(job.ticket.format, input, job.pdfPages);
+        const batches = buildBatches(
+          job.ticket.format,
+          input,
+          job.pdfPages,
+          job.skipPages,
+        );
         for (const batch of batches) {
           await port.submitBatch(batch);
         }

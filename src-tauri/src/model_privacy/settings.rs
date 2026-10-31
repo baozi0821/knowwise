@@ -121,6 +121,9 @@ pub struct ModelSettingsV1 {
     pub save_reasoning: bool,
     /// OCR 语言(chi_sim+eng 等;本地离线)。
     pub ocr_languages: String,
+    /// 自动 OCR(默认开启):PDF 解析时/解析完成后自动识别无文本层与缺失页。
+    /// 关闭后只保留手动“识别所选页”。识别始终使用本地 Tesseract，不联网。
+    pub auto_ocr: bool,
     /// 翻译目标语言(默认 zh-CN)。
     pub translation_target_language: String,
     /// 是否显示成本/时间预估。
@@ -175,6 +178,7 @@ impl Default for ModelSettingsV1 {
             show_raw_reasoning: true,
             save_reasoning: false,
             ocr_languages: "chi_sim+eng".into(),
+            auto_ocr: true,
             translation_target_language: "zh-CN".into(),
             show_cost_estimate: true,
             allow_external_translation_engine: false,
@@ -242,6 +246,8 @@ pub struct ModelSettingsPatch {
     pub save_reasoning: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ocr_languages: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_ocr: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub translation_target_language: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -466,6 +472,9 @@ impl ModelSettingsV1 {
         }
         if let Some(v) = &patch.ocr_languages {
             self.ocr_languages = v.clone();
+        }
+        if let Some(v) = patch.auto_ocr {
+            self.auto_ocr = v;
         }
         if let Some(v) = &patch.translation_target_language {
             self.translation_target_language = v.clone();

@@ -1421,6 +1421,7 @@ const PdfSinglePage = memo(function PdfSinglePage({
   onReprocessOcr,
   onRecognizeOcrPages,
   pageCount,
+  ocrGenerationId,
   ocrBusy,
   client,
   documentId,
@@ -1467,6 +1468,8 @@ const PdfSinglePage = memo(function PdfSinglePage({
   onReprocessOcr?: () => void;
   onRecognizeOcrPages?: (pages: number[]) => void;
   pageCount?: number;
+  /** 当前解析代次；用于把旧代次的 OCR 徽标标成“需重跑”。 */
+  ocrGenerationId?: string;
   ocrBusy?: boolean;
   client?: CommandClient;
   documentId?: string;
@@ -1965,6 +1968,7 @@ const PdfSinglePage = memo(function PdfSinglePage({
             onReprocess={onReprocessOcr}
             onRecognizePages={onRecognizeOcrPages}
             pageCount={pageCount}
+            currentGenerationId={ocrGenerationId}
             busy={ocrBusy}
             client={client}
             documentId={documentId}
@@ -2239,6 +2243,7 @@ const PdfPageList = memo(function PdfPageList({
   onReprocessOcr,
   onRecognizeOcrPages,
   pageCount,
+  ocrGenerationId,
   ocrBusy,
   client,
   documentId,
@@ -2285,6 +2290,8 @@ const PdfPageList = memo(function PdfPageList({
   onReprocessOcr?: () => void;
   onRecognizeOcrPages?: (pages: number[]) => void;
   pageCount?: number;
+  /** 当前解析代次；用于把旧代次的 OCR 徽标标成“需重跑”。 */
+  ocrGenerationId?: string;
   ocrBusy?: boolean;
   client?: CommandClient;
   documentId?: string;
@@ -2327,6 +2334,7 @@ const PdfPageList = memo(function PdfPageList({
             onReprocessOcr={onReprocessOcr}
             onRecognizeOcrPages={onRecognizeOcrPages}
             pageCount={pageCount}
+            ocrGenerationId={ocrGenerationId}
             ocrBusy={ocrBusy}
             client={client}
             documentId={documentId}
@@ -2625,6 +2633,7 @@ export function PdfPagesView({
   client,
   documentTitle,
   pageOcr,
+  ocrGenerationId,
   onReprocessOcr,
   ocrBusy,
   pdfBytes,
@@ -2641,6 +2650,8 @@ export function PdfPagesView({
   documentTitle?: string;
   /** 2D 页级 OCR 状态(按页号)。 */
   pageOcr?: Map<number, PageOcrStatusView>;
+  /** 当前解析代次；旧代次徽标标成“需重跑”。 */
+  ocrGenerationId?: string;
   onReprocessOcr?: () => void;
   ocrBusy?: boolean;
   /** 原始 PDF 字节(指定页 OCR 用;null 表示尚未加载)。 */
@@ -2730,7 +2741,7 @@ export function PdfPagesView({
       }
       // 不失效 ["reader","render-plan"]:OCR 文本不改变 PDF 渲染,
       // 重取渲染计划会在解析进行中触发 10.9.1 竞态,导致阅读区短暂报错/徽标消失。
-      showToast("OCR 文本已保存,本页索引已重建");
+      showToast("OCR 文本已保存,索引已更新");
     },
     [documentId, versionId, queryClient, showToast],
   );
@@ -4644,6 +4655,7 @@ export function PdfPagesView({
               onReprocessOcr={onReprocessOcr}
               onRecognizeOcrPages={(ocrPages) => setOcrDialogPages(ocrPages)}
               pageCount={pages.length}
+              ocrGenerationId={ocrGenerationId}
               ocrBusy={ocrBusy}
               client={client}
               documentId={documentId}
@@ -4677,6 +4689,7 @@ export function PdfPagesView({
               onReprocessOcr={onReprocessOcr}
               onRecognizeOcrPages={(ocrPages) => setOcrDialogPages(ocrPages)}
               pageCount={pages.length}
+              ocrGenerationId={ocrGenerationId}
               ocrBusy={ocrBusy}
               client={client}
               documentId={documentId}

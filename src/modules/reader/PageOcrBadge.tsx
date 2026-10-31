@@ -33,6 +33,7 @@ function confidenceText(status: PageOcrStatusView): string | null {
 
 export function PageOcrBadge({
   status,
+  currentGenerationId,
   onReprocess,
   onRecognizePages,
   pageCount,
@@ -43,6 +44,8 @@ export function PageOcrBadge({
   onCorrected,
 }: {
   status?: PageOcrStatusView;
+  /** 当前解析代次；旧代次的 completed 不能显示成当前已识别。 */
+  currentGenerationId?: string;
   onReprocess?: () => void;
   /** 指定页 OCR:只识别本页(不重建整篇)。 */
   onRecognizePages?: (pages: number[]) => void;
@@ -55,19 +58,30 @@ export function PageOcrBadge({
 }): ReactNode {
   const [editorOpen, setEditorOpen] = useState(false);
   if (!status || status.status === "skipped") return null;
-  const label = statusLabel(status);
-  const confidence = confidenceText(status);
-  const low = status.status === "low_confidence";
-  const failed = status.status === "failed";
+  const stale =
+    status.generationId !== undefined &&
+    currentGenerationId !== undefined &&
+    status.generationId !== currentGenerationId;
+  const label = stale ? "OCR 需重跑" : statusLabel(status);
+  const confidence = stale ? null : confidenceText(status);
+  const low = !stale && status.status === "low_confidence";
+  const failed = !stale && status.status === "failed";
   const running =
-    status.status === "pending" ||
-    status.status === "rendering" ||
-    status.status === "ocr_running";
-  const actionable = (failed || low || (status.status === "completed" && status.blockCount === 0)) && onReprocess;
+    !stale &&
+    (status.status === "pending" ||
+      status.status === "rendering" ||
+      status.status === "ocr_running");
+  const actionable =
+    (stale ||
+      failed ||
+      low ||
+      (status.status === "completed" && status.blockCount === 0)) &&
+    onReprocess;
   const detail = [
     `第 ${status.pageNumber} 页`,
     label,
     confidence ? `置信度 ${confidence}` : null,
+    stale ? "旧解析代次,需重新识别" : null,
     low ? "请核对原文" : null,
     status.errorCode ? `错误码 ${status.errorCode}` : null,
   ]
@@ -91,14 +105,14 @@ export function PageOcrBadge({
           type="button"
           className="pdf-ocr-retry"
           disabled={busy}
-          aria-label={`重新识别第 ${status.pageNumber} 页(重建整篇解析)`}
-          title="重建整篇解析(较慢);只识别本页请用「识别本页」"
+          aria-label={`逐页重新识别全文(${status.pageNumber} 页入口)`}
+          title="逐页重新识别全文(保留其它页;较慢);只识别本页请用「识别本页」"
           onClick={(event) => {
             event.stopPropagation();
             onReprocess?.();
           }}
         >
-          {busy ? "提交中…" : "重新识别全文"}
+          {busy ? "识别中…" : "重新识别全文(逐页)"}
         </button>
       ) : null}
       {onRecognizePages !== undefined && !running ? (
@@ -117,7 +131,7 @@ export function PageOcrBadge({
             : "识别本页"}
         </button>
       ) : null}
-      {client !== undefined && documentId !== undefined && versionId !== undefined ? (
+      {!stale && client !== undefined && documentId !== undefined && versionId !== undefined ? (
         <button
           type="button"
           className="pdf-ocr-edit"
@@ -130,7 +144,7 @@ export function PageOcrBadge({
           编辑识别文本
         </button>
       ) : null}
-      {editorOpen && client !== undefined && documentId !== undefined && versionId !== undefined ? (
+      {editorOpen && !stale && client !== undefined && documentId !== undefined && versionId !== undefined ? (
         <OcrTextEditor
           client={client}
           documentId={documentId}

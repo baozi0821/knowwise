@@ -10,6 +10,7 @@ import { ApiError } from "../../app/api/client";
 import type { PageOcrControlView } from "../../shared/generated/PageOcrControlView";
 import type { PageOcrStatusView } from "../../shared/generated/PageOcrStatusView";
 import type { ParseState } from "../../shared/generated/ParseState";
+import { cancelOcrRun, ocrRunKey, useOcrRuntime } from "./pageOcrRuntime";
 import "./pageOcr.css";
 
 const STATUS_LABELS: Record<PageOcrStatusView["status"], string> = {
@@ -49,16 +50,25 @@ export function PageOcrProgressPanel({
   versionId,
   parseState,
   ocr,
+  pageCount,
+  currentGenerationId,
 }: {
   client: CommandClient;
   documentId: string;
   versionId: string;
   parseState: ParseState | undefined;
   ocr: readonly PageOcrStatusView[];
+  /** PDF 真实页数（来自阅读器 viewport）；用于把“没有 row 的页”算作缺失。 */
+  pageCount?: number;
+  /** 当前解析代次；旧代次的 completed 不能算当前已识别。 */
+  currentGenerationId?: string;
 }): ReactNode {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<"pause" | "resume" | null>(null);
   const [notice, setNotice] = useState<{ kind: "info" | "error"; text: string } | null>(null);
+  const runKey = ocrRunKey(documentId, versionId);
+  const incrementalRunning = useOcrRuntime((state) => state.runs[runKey] === true);
+  const liveProgress = useOcrRuntime((state) => state.progress[runKey]);
 
   const control = useQuery({
     queryKey: ["page-ocr-control", documentId, versionId],
@@ -68,27 +78,50 @@ export function PageOcrProgressPanel({
     staleTime: 1_000,
     refetchInterval: (query) => {
       const paused = query.state.data?.paused === true;
-      return parseState === "in_progress" || paused ? 1_500 : false;
+      return parseState === "in_progress" || paused || incrementalRunning ? 1_500 : false;
     },
   });
 
-  const rows = ocr.filter((row) => row.status !== "skipped");
-  if (rows.length === 0 && parseState !== "in_progress" && control.data?.paused !== true) {
-    return null;
-  }
-  const total = rows.length;
-  const done = rows.filter(
-    (row) => row.status === "completed" || row.status === "low_confidence",
-  ).length;
-  const failed = rows.filter((row) => row.status === "failed").length;
-  const low = rows.filter((row) => row.status === "low_confidence").length;
-  const pending = rows.filter((row) => row.status === "pending").length;
-  const current =
-    rows.find((row) => row.status === "ocr_running") ??
-    rows.find((row) => row.status === "rendering") ??
-    null;
+  // 只把当前代次的状态算作已覆盖；旧代次行保留但显示为“需重跑”。
+  const currentRows = ocr.filter(
+    (row) =>
+      currentGenerationId === undefined ||
+      row.generationId === undefined ||
+      row.generationId === currentGenerationId,
+  );
+  const staleCount = ocr.length - currentRows.length;
+  const rows = currentRows.filter((row) => row.status !== "skipped");
   const paused = control.data?.paused === true;
   const taskAlive = parseState === "in_progress";
+  const runAlive = taskAlive || incrementalRunning;
+  if (rows.length === 0 && staleCount === 0 && !taskAlive && !paused && !incrementalRunning) {
+    return null;
+  }
+  const maxPage = currentRows.reduce((max, row) => Math.max(max, row.pageNumber), 0);
+  const total = pageCount !== undefined && pageCount > 0 ? Math.max(pageCount, maxPage) : maxPage;
+  const doneRows = currentRows.filter(
+    (row) =>
+      (row.status === "completed" || row.status === "low_confidence") && row.blockCount > 0,
+  );
+  const zeroBlockRows = currentRows.filter(
+    (row) =>
+      (row.status === "completed" || row.status === "low_confidence") && row.blockCount === 0,
+  );
+  const failedRows = currentRows.filter((row) => row.status === "failed").concat(zeroBlockRows);
+  const low = doneRows.filter((row) => row.status === "low_confidence").length;
+  const pendingRows = currentRows.filter(
+    (row) =>
+      row.status === "pending" || row.status === "rendering" || row.status === "ocr_running",
+  );
+  const knownPages = new Set(currentRows.map((row) => row.pageNumber));
+  const missing = total > 0 ? Math.max(0, total - knownPages.size) : 0;
+  const done = doneRows.length;
+  const failed = failedRows.length;
+  const skipped = currentRows.filter((row) => row.status === "skipped").length;
+  const current =
+    pendingRows.find((row) => row.status === "ocr_running") ??
+    pendingRows.find((row) => row.status === "rendering") ??
+    null;
 
   async function togglePause(next: boolean): Promise<void> {
     setBusy(next ? "pause" : "resume");
@@ -103,9 +136,9 @@ export function PageOcrProgressPanel({
         kind: "info",
         text: next
           ? "已请求暂停:当前页完成后不再开始新页;已识别页保留。"
-          : taskAlive
+          : runAlive
             ? "已继续:从下一张待识别页开始。"
-            : "已清除暂停信号;全文识别任务已不在运行,需重新识别全文才能继续。",
+            : "已清除暂停信号;当前没有运行中的 OCR,需重新开始识别。",
       });
     } catch (error) {
       setNotice({ kind: "error", text: `暂停状态未保存(${errorCodeOf(error)})` });
@@ -134,12 +167,15 @@ export function PageOcrProgressPanel({
         <span className="ocr-progress-summary" role="status">
           已识别 {done}/{total}
           {current !== null ? ` · 当前第 ${current.pageNumber} 页` : ""}
-          {pending > 0 && current === null ? ` · 排队 ${pending}` : ""}
+          {pendingRows.length > 0 && current === null ? ` · 排队 ${pendingRows.length}` : ""}
+          {missing > 0 ? ` · 缺失 ${missing}` : ""}
           {failed > 0 ? ` · 失败 ${failed}` : ""}
           {low > 0 ? ` · 低置信 ${low}` : ""}
+          {skipped > 0 ? ` · 跳过 ${skipped}` : ""}
+          {staleCount > 0 ? ` · 旧代次 ${staleCount}` : ""}
         </span>
         {paused ? <span className="ocr-progress-paused">已暂停</span> : null}
-        {taskAlive ? (
+        {runAlive ? (
           paused ? (
             <button
               type="button"
@@ -175,7 +211,27 @@ export function PageOcrProgressPanel({
             {busy === "resume" ? "清除中…" : "清除暂停"}
           </button>
         ) : null}
+        {incrementalRunning && !taskAlive ? (
+          <button
+            type="button"
+            className="btn tiny ghost"
+            aria-label="停止自动 OCR"
+            title="停止自动 OCR;已识别页仍会保存"
+            onClick={() => cancelOcrRun(documentId, versionId)}
+          >
+            停止
+          </button>
+        ) : null}
       </div>
+
+      {incrementalRunning && liveProgress ? (
+        <p className="ocr-progress-notice" role="status">
+          本次 OCR:第 {liveProgress.pageNumber} 页 ·{" "}
+          {STATUS_LABELS[liveProgress.status as PageOcrStatusView["status"]] ??
+            liveProgress.status}{" "}
+          ({liveProgress.done}/{liveProgress.total})
+        </p>
+      ) : null}
 
       {notice !== null ? (
         <p
@@ -185,10 +241,10 @@ export function PageOcrProgressPanel({
           {notice.text}
         </p>
       ) : null}
-      {paused && !taskAlive ? (
+      {paused && !runAlive ? (
         <p className="ocr-progress-notice warn" role="status">
-          暂停状态下全文识别任务已结束(应用重启或任务中断),已识别页仍在;
-          继续需要重新识别全文,不会把“重跑”当作续跑。
+          暂停信号仍在,但当前没有运行中的 OCR;已识别页保留。继续需要重新开始识别,
+          不会把“重跑”当作续跑。
         </p>
       ) : null}
 

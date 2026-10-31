@@ -483,11 +483,18 @@ impl ParseIndexService {
         _reason: &str,
         idempotency_key: &str,
     ) -> Result<TaskRow, AppError> {
-        self.start_parse_inner(document_id, version_id, _reason, idempotency_key, false)
+        self.start_parse_inner(
+            document_id,
+            version_id,
+            _reason,
+            idempotency_key,
+            false,
+            false,
+        )
     }
 
-    /// 2D 手动“重新识别”:强制新建解析代次(旧代次保留给历史引用),
-    /// 由前端重新执行 OCR 并提交 origin=ocr 的块。
+    /// 2D “重新识别全文”:复用当前代次重跑 OCR，保留旧页状态与块 ID。
+    /// 只有 parser 配置变化才创建新代次；前端逐页增量识别时不会走这里。
     pub fn reprocess_ocr(
         &self,
         document_id: &str,
@@ -499,6 +506,7 @@ impl ParseIndexService {
             version_id,
             "reprocess_ocr",
             idempotency_key,
+            false,
             true,
         )
     }
@@ -510,6 +518,7 @@ impl ParseIndexService {
         _reason: &str,
         idempotency_key: &str,
         force_new_generation: bool,
+        allow_complete_reuse: bool,
     ) -> Result<TaskRow, AppError> {
         let format = self.validate_version(document_id, version_id)?;
         let task = self.tasks.create_task(CreateTask {
@@ -543,12 +552,18 @@ impl ParseIndexService {
                         version_id,
                         format,
                         force_new_generation,
+                        allow_complete_reuse,
                     )
                 }
             }
-            TaskStatus::Queued => {
-                self.launch_attempt(&task, document_id, version_id, format, force_new_generation)
-            }
+            TaskStatus::Queued => self.launch_attempt(
+                &task,
+                document_id,
+                version_id,
+                format,
+                force_new_generation,
+                allow_complete_reuse,
+            ),
             _ => {
                 let retried = self.tasks.retry_task(&task.id)?;
                 self.launch_attempt(
@@ -557,6 +572,7 @@ impl ParseIndexService {
                     version_id,
                     format,
                     force_new_generation,
+                    allow_complete_reuse,
                 )
             }
         }
@@ -595,7 +611,7 @@ impl ParseIndexService {
             ))
         })?;
         let retried = self.tasks.retry_task(task_id)?;
-        self.launch_attempt(&retried, &document_id, &version_id, format, false)
+        self.launch_attempt(&retried, &document_id, &version_id, format, false, false)
     }
 
     fn reissue_ticket(&self, task: &TaskRow) -> Result<(), AppError> {
@@ -647,6 +663,7 @@ impl ParseIndexService {
         version_id: &str,
         format: DocumentFormat,
         force_new_generation: bool,
+        allow_complete_reuse: bool,
     ) -> Result<TaskRow, AppError> {
         let config_hash = self.parser_config_hash(format);
 
@@ -658,6 +675,7 @@ impl ParseIndexService {
         })?;
         if let Some(gen) = current {
             if !force_new_generation
+                && !allow_complete_reuse
                 && gen.parser_config_hash == config_hash
                 && gen.status == GenerationStatus::Complete
                 && gen.task_id.as_deref() != Some(task.id.as_str())
@@ -692,7 +710,9 @@ impl ParseIndexService {
             }
         }
 
-        // 常规路径:新 Attempt + 代次创建/复用(同 Task 且同配置 → 复用去重)。
+        // 常规路径:新 Attempt + 代次复用/创建。复用同配置代次时保留
+        // page_ocr 与内容块，逐页上报/提交会按 key upsert；只有 parser
+        // 配置变化才新建代次（旧代次保留给历史引用）。
         let (task, _attempt) = self.tasks.begin_attempt(&task.id, None, None)?;
         let attempt_id = task
             .current_attempt_id
@@ -710,25 +730,31 @@ impl ParseIndexService {
 
         let generation_id = self.db.write(move |conn| {
             let tx = conn.transaction().map_err(|e| db_app_error(&e))?;
-            // 新 Attempt 重新识别:旧页状态不再代表本次代次。
-            tx.execute(
-                "DELETE FROM page_ocr WHERE document_version_id=?1",
-                params![vid],
-            )
-            .map_err(|e| db_app_error(&e))?;
-            // 暂停信号属于旧代次:新 Attempt 一律从未暂停开始。
+            // 暂停信号属于旧 Attempt:新 Attempt 一律从未暂停开始。
+            // page_ocr 不清空：已识别页、块与纠错必须跨 Attempt/代次保留。
             tx.execute(
                 "DELETE FROM page_ocr_control WHERE document_version_id=?1",
                 params![vid],
             )
             .map_err(|e| db_app_error(&e))?;
-            let existing = load_generation_by_task(&tx, &tid)?;
-            let gen_id = match existing {
-                // 同 Task 同配置:复用代次(重试);重置 Attempt 与批次序号。
-                Some(g) if g.parser_config_hash == cfg => {
-                    if g.status == GenerationStatus::Complete {
-                        return Err(err(CoreErrorCode::TaskNotRunning));
-                    }
+            let current = load_current_generation(&tx, &vid)?;
+            let task_gen = load_generation_by_task(&tx, &tid)?;
+            let mut candidates: Vec<GenerationRow> = Vec::new();
+            if let Some(g) = current {
+                candidates.push(g);
+            }
+            if let Some(g) = task_gen {
+                if candidates.iter().all(|candidate| candidate.id != g.id) {
+                    candidates.push(g);
+                }
+            }
+            let candidate = candidates.into_iter().find(|g| {
+                g.parser_config_hash == cfg
+                    && (g.status != GenerationStatus::Complete || allow_complete_reuse)
+            });
+            let gen_id = match candidate {
+                // 同配置:复用代次(重试/重新识别),保留 page_ocr 与已写入的块。
+                Some(g) => {
                     tx.execute(
                         "UPDATE parse_generation SET is_current=0 WHERE document_version_id=?1 \
                          AND is_current=1 AND id != ?2",
@@ -736,16 +762,16 @@ impl ParseIndexService {
                     )
                     .map_err(|e| db_app_error(&e))?;
                     tx.execute(
-                        "UPDATE parse_generation SET status='parsing', is_current=1, \
-                         current_attempt_id=?2, last_batch_seq=0, error_code=NULL, started_at=?3 \
-                         WHERE id=?1",
-                        params![g.id, attempt_id, now],
+                        "UPDATE parse_generation SET status='parsing', is_current=1, task_id=?2, \
+                         current_attempt_id=?3, last_batch_seq=0, error_code=NULL, started_at=?4, \
+                         completed_at=NULL WHERE id=?1",
+                        params![g.id, tid, attempt_id, now],
                     )
                     .map_err(|e| db_app_error(&e))?;
                     g.id
                 }
-                // 配置变化或新任务:新建代次,旧代次降级为非当前(被引用时保留)。
-                _ => {
+                // 配置变化或首次解析:新建代次;旧代次降级为非当前。
+                None => {
                     tx.execute(
                         "UPDATE parse_generation SET is_current=0 WHERE document_version_id=?1 \
                          AND is_current=1",
@@ -939,14 +965,90 @@ impl ParseIndexService {
                 let text_hash = sha256_str(&b.text);
                 match existing {
                     Some(row) => {
-                        // 同 key 重提(重试路径):内容必须一致,否则拒绝。
-                        if row.ordinal != Some(b.ordinal) || row.text != b.text {
-                            return Err(err(CoreErrorCode::InvalidRequest)
-                                .with_detail("reason", "block_key_drift".into()));
+                        // OCR 是派生文本:同一 block_key 的重跑允许结果变化，
+                        // 保留块 ID（旧引用仍可解析）并原地更新索引。
+                        // 解析器文本层块仍要求确定性一致，防止重试漂移。
+                        if b.origin == BlockOrigin::Ocr && row.origin == BlockOrigin::Ocr {
+                            let ordinal_taken: bool = tx
+                                .query_row(
+                                    "SELECT EXISTS(SELECT 1 FROM content_block \
+                                     WHERE parse_generation_id=?1 AND ordinal=?2 AND id<>?3)",
+                                    params![binding2.generation_id, b.ordinal, row.id],
+                                    |r| r.get(0),
+                                )
+                                .map_err(|e| db_app_error(&e))?;
+                            if !ordinal_taken {
+                                tx.execute(
+                                    "UPDATE content_block SET ordinal=?2 WHERE id=?1",
+                                    params![row.id, b.ordinal],
+                                )
+                                .map_err(|e| db_app_error(&e))?;
+                            }
+                            tx.execute(
+                                "UPDATE content_block SET text=?2, normalized_text=?3, \
+                                 text_hash=?4, normalized_text_hash=?5, heading_path_json=?6, \
+                                 locator_json=?7, kind=?8, ocr_confidence=?9, indexable=?10 \
+                                 WHERE id=?1",
+                                params![
+                                    row.id,
+                                    b.text,
+                                    normalized_text,
+                                    text_hash,
+                                    sha256_str(&normalized_text),
+                                    serde_json::to_string(&b.heading_path)
+                                        .unwrap_or_else(|_| "[]".into()),
+                                    serde_json::to_string(&b.locator).unwrap_or_default(),
+                                    b.kind.as_str(),
+                                    b.ocr_confidence,
+                                    b.indexable as i64,
+                                ],
+                            )
+                            .map_err(|e| db_app_error(&e))?;
+                            tx.execute(
+                                "DELETE FROM content_block_fts WHERE block_id=?1",
+                                [&row.id],
+                            )
+                            .map_err(|e| db_app_error(&e))?;
+                            if b.indexable {
+                                tx.execute(
+                                    "INSERT INTO content_block_fts(text, block_id, parse_generation_id) \
+                                     VALUES (?1,?2,?3)",
+                                    params![normalized_text, row.id, binding2.generation_id],
+                                )
+                                .map_err(|e| db_app_error(&e))?;
+                            }
+                            resolved_keys.insert(b.block_key.clone(), row.id);
+                            accepted += 1;
+                        } else {
+                            // 同 key 重提(重试路径):内容必须一致,否则拒绝。
+                            if row.ordinal != Some(b.ordinal) || row.text != b.text {
+                                return Err(err(CoreErrorCode::InvalidRequest)
+                                    .with_detail("reason", "block_key_drift".into()));
+                            }
+                            resolved_keys.insert(b.block_key.clone(), row.id);
                         }
-                        resolved_keys.insert(b.block_key.clone(), row.id);
                     }
                     None => {
+                        // OCR 块数量可能随重跑变化;若目标 ordinal 已被占用,
+                        // 放到高段位保留页内顺序，避免与后续 parser 批次的
+                        // 连续 ordinal 冲突，而不是让整批解析失败。
+                        let insert_ordinal = if b.origin == BlockOrigin::Ocr {
+                            let taken: bool = tx
+                                .query_row(
+                                    "SELECT EXISTS(SELECT 1 FROM content_block \
+                                     WHERE parse_generation_id=?1 AND ordinal=?2)",
+                                    params![binding2.generation_id, b.ordinal],
+                                    |r| r.get(0),
+                                )
+                                .map_err(|e| db_app_error(&e))?;
+                            if taken {
+                                1_000_000_000i64.saturating_add(b.ordinal)
+                            } else {
+                                b.ordinal
+                            }
+                        } else {
+                            b.ordinal
+                        };
                         tx.execute(
                             "INSERT INTO content_block(id, document_version_id, \
                              parse_generation_id, origin, block_key, ordinal, parent_block_id, \
@@ -960,7 +1062,7 @@ impl ParseIndexService {
                                 binding2.generation_id,
                                 b.origin.as_str(),
                                 b.block_key,
-                                b.ordinal,
+                                insert_ordinal,
                                 parent_id,
                                 b.kind.as_str(),
                                 b.text,
@@ -1399,7 +1501,7 @@ impl ParseIndexService {
             };
 
             let has_text_layer = match (&gen, format) {
-                (Some(_), DocumentFormat::Pdf) => Some(!(no_text_all || (!has_blocks))),
+                (Some(_), DocumentFormat::Pdf) => Some(!no_text_all && has_blocks),
                 _ => None,
             };
 
@@ -1613,6 +1715,27 @@ impl ParseIndexService {
             }
 
             for entry in &entries2 {
+                // 已完成的页不能被“本次排队/文本层跳过”降级为 pending/skipped:
+                // 范围识别会先上报所有目标页,取消或失败时旧结果必须仍然可见。
+                let existing: Option<(String, i64, Option<String>)> = tx
+                    .query_row(
+                        "SELECT status, block_count, parse_generation_id FROM page_ocr \
+                         WHERE document_version_id=?1 AND page_number=?2",
+                        params![binding2.version_id, entry.page_number],
+                        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                    )
+                    .optional()
+                    .map_err(|e| db_app_error(&e))?;
+                if matches!(
+                    entry.status,
+                    PageOcrStatus::Pending | PageOcrStatus::Skipped
+                ) && existing.as_ref().is_some_and(|(status, blocks, generation)| {
+                    matches!(status.as_str(), "completed" | "low_confidence")
+                        && *blocks > 0
+                        && generation.as_deref() == Some(binding2.generation_id.as_str())
+                }) {
+                    continue;
+                }
                 let quality_json = entry
                     .quality
                     .as_ref()
@@ -1717,7 +1840,7 @@ impl ParseIndexService {
             let mut stmt = conn
                 .prepare(
                     "SELECT page_number, status, confidence, block_count, error_code, \
-                     reasons_json, engine_version, updated_at, completed_at \
+                     reasons_json, engine_version, parse_generation_id, updated_at, completed_at \
                      FROM page_ocr WHERE document_version_id=?1 ORDER BY page_number",
                 )
                 .map_err(|e| db_app_error(&e))?;
@@ -1733,8 +1856,9 @@ impl ParseIndexService {
                         error_code: r.get(4)?,
                         reasons: serde_json::from_str(&reasons_json).unwrap_or_default(),
                         engine_version: r.get(6)?,
-                        updated_at: r.get(7)?,
-                        completed_at: r.get(8)?,
+                        generation_id: r.get(7)?,
+                        updated_at: r.get(8)?,
+                        completed_at: r.get(9)?,
                     })
                 })
                 .map_err(|e| db_app_error(&e))?
@@ -2214,10 +2338,14 @@ impl ParseIndexService {
             }
             if !matches!(
                 page.status.as_str(),
-                "completed" | "low_confidence" | "failed"
+                "completed" | "low_confidence" | "failed" | "skipped"
             ) {
                 return Err(err(CoreErrorCode::InvalidRequest)
                     .with_detail("reason", "invalid_ocr_status".into()));
+            }
+            if page.status == "skipped" && !page.blocks.is_empty() {
+                return Err(err(CoreErrorCode::InvalidRequest)
+                    .with_detail("reason", "skipped_with_blocks".into()));
             }
             if page.blocks.len() > 500 {
                 return Err(err(CoreErrorCode::InvalidRequest)
@@ -2299,27 +2427,31 @@ impl ParseIndexService {
                         .with_detail("reason", "parse_in_progress".into()));
                 }
                 let was_complete = gen.status == GenerationStatus::Complete;
-                // 中断的全文识别留下的瞬态状态与“有状态无块”的页:先如实回落到 pending。
-                // 必须在写入所选页之前执行,否则会把本次“识别成功但 0 块”的页误清。
+                // 中断的全文识别留下的瞬态页：有可索引 OCR 块就恢复为
+                // completed/low_confidence，没有块才回落 pending。不能把
+                // 所有瞬态页一律清成 pending，否则重跑失败会丢掉旧识别结果。
                 tx.execute(
-                    "UPDATE page_ocr SET status='pending', block_count=0, confidence=NULL, \
-                     error_code=NULL, updated_at=?2, completed_at=NULL \
+                    "UPDATE page_ocr SET \
+                       status = CASE WHEN (SELECT COUNT(*) FROM content_block cb \
+                           WHERE cb.parse_generation_id=page_ocr.parse_generation_id \
+                             AND cb.origin='ocr' AND cb.indexable=1 \
+                             AND CAST(json_extract(cb.locator_json, '$.pageNumber') AS INTEGER)=page_ocr.page_number) > 0 \
+                         THEN CASE WHEN page_ocr.confidence IS NOT NULL \
+                                    AND page_ocr.confidence < 0.6 \
+                              THEN 'low_confidence' ELSE 'completed' END \
+                         ELSE 'pending' END, \
+                       block_count = (SELECT COUNT(*) FROM content_block cb \
+                           WHERE cb.parse_generation_id=page_ocr.parse_generation_id \
+                             AND cb.origin='ocr' AND cb.indexable=1 \
+                             AND CAST(json_extract(cb.locator_json, '$.pageNumber') AS INTEGER)=page_ocr.page_number), \
+                       completed_at = CASE WHEN (SELECT COUNT(*) FROM content_block cb \
+                           WHERE cb.parse_generation_id=page_ocr.parse_generation_id \
+                             AND cb.origin='ocr' AND cb.indexable=1 \
+                             AND CAST(json_extract(cb.locator_json, '$.pageNumber') AS INTEGER)=page_ocr.page_number) > 0 \
+                         THEN COALESCE(page_ocr.completed_at, ?2) ELSE NULL END, \
+                       error_code = NULL, updated_at=?2 \
                      WHERE document_version_id=?3 AND parse_generation_id=?1 \
                        AND status IN ('rendering','ocr_running')",
-                    params![gen.id, now, vid],
-                )
-                .map_err(|e| db_app_error(&e))?;
-                tx.execute(
-                    "UPDATE page_ocr SET status='pending', block_count=0, confidence=NULL, \
-                     error_code=NULL, updated_at=?2, completed_at=NULL \
-                     WHERE document_version_id=?3 AND parse_generation_id=?1 \
-                       AND status IN ('completed','low_confidence') \
-                       AND page_number NOT IN ( \
-                         SELECT CAST(json_extract(locator_json, '$.pageNumber') AS INTEGER) \
-                         FROM content_block WHERE parse_generation_id=?1 AND origin='ocr' \
-                           AND indexable=1 \
-                           AND json_extract(locator_json, '$.pageNumber') IS NOT NULL \
-                       )",
                     params![gen.id, now, vid],
                 )
                 .map_err(|e| db_app_error(&e))?;
@@ -2477,7 +2609,11 @@ impl ParseIndexService {
                     {
                         reasons.push("low_confidence".into());
                     }
-                    if page_block_count == 0
+                    if page.status == "skipped" {
+                        if !reasons.iter().any(|reason| reason == "text_layer_ok") {
+                            reasons.push("text_layer_ok".into());
+                        }
+                    } else if page_block_count == 0
                         && !reasons.iter().any(|reason| reason == "no_text_recognized")
                     {
                         reasons.push("no_text_recognized".into());
@@ -2509,23 +2645,27 @@ impl ParseIndexService {
                         ],
                     )
                     .map_err(|e| db_app_error(&e))?;
-                    tx.execute(
-                        "INSERT INTO parse_region(generation_id, region_key, region_kind, status, \
-                         block_count, order_confidence, error_code, updated_at) \
-                         VALUES (?1,?2,'page',?3,?4,'high',?5,?6) \
-                         ON CONFLICT(generation_id, region_key) DO UPDATE SET \
-                         status=excluded.status, block_count=excluded.block_count, \
-                         error_code=excluded.error_code, updated_at=excluded.updated_at",
-                        params![
-                            gen.id,
-                            format!("page:{}", page.page_number),
-                            if page.status == "failed" { "failed" } else { "complete" },
-                            page_block_count,
-                            page.error_code,
-                            now,
-                        ],
-                    )
-                    .map_err(|e| db_app_error(&e))?;
+                    // skipped 表示文本层合格、本次未做 OCR：保留解析器已有的
+                    // page region，不要把它的 block_count/状态改成 0。
+                    if page.status != "skipped" {
+                        tx.execute(
+                            "INSERT INTO parse_region(generation_id, region_key, region_kind, status, \
+                             block_count, order_confidence, error_code, updated_at) \
+                             VALUES (?1,?2,'page',?3,?4,'high',?5,?6) \
+                             ON CONFLICT(generation_id, region_key) DO UPDATE SET \
+                             status=excluded.status, block_count=excluded.block_count, \
+                             error_code=excluded.error_code, updated_at=excluded.updated_at",
+                            params![
+                                gen.id,
+                                format!("page:{}", page.page_number),
+                                if page.status == "failed" { "failed" } else { "complete" },
+                                page_block_count,
+                                page.error_code,
+                                now,
+                            ],
+                        )
+                        .map_err(|e| db_app_error(&e))?;
+                    }
                 }
                 let _ = repair_fts_tx(&tx, &gen.id)?;
                 let set_hash = compute_block_set_hash(&tx, &gen.id)?;
@@ -2533,7 +2673,7 @@ impl ParseIndexService {
                     region_stats(&tx, &gen.id)?;
                 let final_status = if total > 0 && failed_c == total {
                     GenerationStatus::Failed
-                } else if was_complete && total > 0 && partial_c == 0 && failed_c == 0 {
+                } else if was_complete && (total == 0 || (partial_c == 0 && failed_c == 0)) {
                     GenerationStatus::Complete
                 } else {
                     GenerationStatus::Partial
@@ -3349,7 +3489,7 @@ mod tests {
     }
 
     #[test]
-    fn page_scoped_ocr_saves_blocks_resets_stale_and_preserves_ids() {
+    fn page_scoped_ocr_saves_blocks_preserves_other_pages_and_ids() {
         use crate::parse_index::models::{
             PageOcrRecognitionBlock, PageOcrRecognitionPage, PageOcrStatus,
         };
@@ -3433,7 +3573,7 @@ mod tests {
         let page2 = statuses.iter().find(|row| row.page_number == 2).unwrap();
         assert_eq!(page2.status, PageOcrStatus::Completed);
         assert_eq!(page2.block_count, 2);
-        // 旧引用/状态一致性:未选中且无块的页回落到 pending,选中页写块与 FTS。
+        // 只更新本次提交的页:未选中的 completed 页必须原样保留。
         let (blocks, fts, page2_status, page1_state, generation) = db
             .read(|conn| {
                 let blocks: i64 = conn
@@ -3476,7 +3616,7 @@ mod tests {
         assert_eq!(blocks, 2);
         assert_eq!(fts, 2);
         assert_eq!(page2_status, "completed");
-        assert_eq!(page1_state, "pending");
+        assert_eq!(page1_state, "completed");
         assert_eq!(generation, "partial");
         // 再识别同一页:按 block_key 更新,保留块 ID;少了的段软删除。
         let first_id: String = db
@@ -3503,9 +3643,17 @@ mod tests {
                 locator: locator.clone(),
             }],
         }];
-        service
+        let revised_statuses = service
             .save_page_ocr_recognition("d1", "v1", &revised, "k2")
             .unwrap();
+        assert_eq!(
+            revised_statuses
+                .iter()
+                .find(|row| row.page_number == 2)
+                .unwrap()
+                .status,
+            PageOcrStatus::LowConfidence
+        );
         let (same_id, text, indexable_deleted, fts_after) = db
             .read(|conn| {
                 let same_id: String = conn
@@ -3568,5 +3716,550 @@ mod tests {
         ));
         drop(service);
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn page_scoped_ocr_incremental_range_preserves_existing_and_is_idempotent() {
+        use crate::parse_index::models::{
+            PageOcrRecognitionBlock, PageOcrRecognitionPage, PageOcrStatus,
+        };
+        use crate::shared::locator::PdfRect;
+
+        let path = std::env::temp_dir().join(format!(
+            "kw-ocr-range-{}.sqlite3",
+            crate::shared::SystemIdGenerator.new_entity_id()
+        ));
+        let db = Arc::new(Db::open(&path, 1).unwrap());
+        db.write(|conn| {
+            let migrations = crate::persistence::registration::migrations()
+                .into_iter()
+                .chain(crate::document::registration::migrations())
+                .chain(crate::parse_index::registration::migrations());
+            for migration in migrations {
+                conn.execute_batch(migration.sql)
+                    .map_err(|e| db_app_error(&e))?;
+            }
+            conn.execute_batch(
+                "INSERT INTO document(id,display_name,format,current_version_id,created_at,updated_at)
+                   VALUES ('d1','scan','pdf','v1',0,0);
+                 INSERT INTO document_version(id,document_id,fingerprint_status,created_at)
+                   VALUES ('v1','d1','ready',0);
+                 INSERT INTO parse_generation(id,document_version_id,parser_config_hash,parser_version,
+                   status,is_current,started_at)
+                   VALUES ('g1','v1','hash','parser/1','canceled',1,0);",
+            )
+            .map_err(|e| db_app_error(&e))?;
+            Ok(())
+        })
+        .unwrap();
+        let clock = Arc::new(crate::shared::SystemClock);
+        let ids = Arc::new(crate::shared::SystemIdGenerator);
+        let events = Arc::new(crate::shared::NoopEventSink);
+        let tasks = Arc::new(crate::persistence::task::TaskService::new(
+            db.clone(),
+            clock.clone(),
+            ids.clone(),
+            events.clone(),
+        ));
+        let service = ParseIndexService::new(db.clone(), clock, ids, events, tasks);
+
+        let make_pages = |start: i64, end: i64| -> Vec<PageOcrRecognitionPage> {
+            (start..=end)
+                .map(|page_number| {
+                    let locator = SourceLocator::pdf(
+                        page_number,
+                        vec![PdfRect {
+                            x: 10.0,
+                            y: 20.0,
+                            width: 100.0,
+                            height: 12.0,
+                        }],
+                        PageRotation::R0,
+                    );
+                    PageOcrRecognitionPage {
+                        page_number,
+                        status: "completed".into(),
+                        confidence: Some(0.9),
+                        engine_version: Some("test-engine".into()),
+                        error_code: None,
+                        blocks: vec![
+                            PageOcrRecognitionBlock {
+                                text: format!("page-{page_number}-a"),
+                                confidence: Some(0.9),
+                                kind: Some("paragraph".into()),
+                                locator: locator.clone(),
+                            },
+                            PageOcrRecognitionBlock {
+                                text: format!("page-{page_number}-b"),
+                                confidence: Some(0.8),
+                                kind: Some("paragraph".into()),
+                                locator,
+                            },
+                        ],
+                    }
+                })
+                .collect()
+        };
+        service
+            .save_page_ocr_recognition("d1", "v1", &make_pages(1, 3), "k1")
+            .unwrap();
+        let ids_before: Vec<String> = db
+            .read(|conn| {
+                let mut stmt = conn
+                    .prepare(
+                        "SELECT id FROM content_block WHERE parse_generation_id='g1' \
+                         AND origin='ocr' ORDER BY block_key",
+                    )
+                    .map_err(|e| db_app_error(&e))?;
+                let rows = stmt
+                    .query_map([], |r| r.get(0))
+                    .map_err(|e| db_app_error(&e))?
+                    .collect::<Result<Vec<String>, _>>()
+                    .map_err(|e| db_app_error(&e))?;
+                Ok(rows)
+            })
+            .unwrap();
+        assert_eq!(ids_before.len(), 6);
+
+        let statuses = service
+            .save_page_ocr_recognition("d1", "v1", &make_pages(4, 10), "k2")
+            .unwrap();
+        assert_eq!(statuses.len(), 10);
+        for page_number in 1..=3 {
+            let row = statuses
+                .iter()
+                .find(|row| row.page_number == page_number)
+                .unwrap();
+            assert_eq!(row.status, PageOcrStatus::Completed);
+            assert_eq!(row.block_count, 2);
+        }
+        for page_number in 4..=10 {
+            let row = statuses
+                .iter()
+                .find(|row| row.page_number == page_number)
+                .unwrap();
+            assert_eq!(row.status, PageOcrStatus::Completed);
+            assert_eq!(row.block_count, 2);
+        }
+        let ids_after: Vec<String> = db
+            .read(|conn| {
+                let mut stmt = conn
+                    .prepare(
+                        "SELECT id FROM content_block WHERE parse_generation_id='g1' \
+                         AND origin='ocr' AND CAST(json_extract(locator_json, '$.pageNumber') \
+                         AS INTEGER) BETWEEN 1 AND 3 ORDER BY block_key",
+                    )
+                    .map_err(|e| db_app_error(&e))?;
+                let rows = stmt
+                    .query_map([], |r| r.get(0))
+                    .map_err(|e| db_app_error(&e))?
+                    .collect::<Result<Vec<String>, _>>()
+                    .map_err(|e| db_app_error(&e))?;
+                Ok(rows)
+            })
+            .unwrap();
+        assert_eq!(ids_before, ids_after, "补识别 4-10 不能改动 1-3 的块 ID");
+        let (blocks, fts) = db
+            .read(|conn| {
+                let blocks: i64 = conn
+                    .query_row(
+                        "SELECT COUNT(*) FROM content_block WHERE parse_generation_id='g1' \
+                         AND origin='ocr' AND indexable=1",
+                        [],
+                        |r| r.get(0),
+                    )
+                    .map_err(|e| db_app_error(&e))?;
+                let fts: i64 = conn
+                    .query_row(
+                        "SELECT COUNT(*) FROM content_block_fts WHERE parse_generation_id='g1'",
+                        [],
+                        |r| r.get(0),
+                    )
+                    .map_err(|e| db_app_error(&e))?;
+                Ok((blocks, fts))
+            })
+            .unwrap();
+        assert_eq!(blocks, 20);
+        assert_eq!(fts, 20);
+
+        // 再次请求 1-3:幂等,不产生重复块,块 ID 不变。
+        service
+            .save_page_ocr_recognition("d1", "v1", &make_pages(1, 3), "k3")
+            .unwrap();
+        let (blocks2, fts2, ids_again) = db
+            .read(|conn| {
+                let blocks: i64 = conn
+                    .query_row(
+                        "SELECT COUNT(*) FROM content_block WHERE parse_generation_id='g1' \
+                         AND origin='ocr' AND indexable=1",
+                        [],
+                        |r| r.get(0),
+                    )
+                    .map_err(|e| db_app_error(&e))?;
+                let fts: i64 = conn
+                    .query_row(
+                        "SELECT COUNT(*) FROM content_block_fts WHERE parse_generation_id='g1'",
+                        [],
+                        |r| r.get(0),
+                    )
+                    .map_err(|e| db_app_error(&e))?;
+                let mut stmt = conn
+                    .prepare(
+                        "SELECT id FROM content_block WHERE parse_generation_id='g1' \
+                         AND origin='ocr' AND CAST(json_extract(locator_json, '$.pageNumber') \
+                         AS INTEGER) BETWEEN 1 AND 3 ORDER BY block_key",
+                    )
+                    .map_err(|e| db_app_error(&e))?;
+                let ids = stmt
+                    .query_map([], |r| r.get(0))
+                    .map_err(|e| db_app_error(&e))?
+                    .collect::<Result<Vec<String>, _>>()
+                    .map_err(|e| db_app_error(&e))?;
+                Ok((blocks, fts, ids))
+            })
+            .unwrap();
+        assert_eq!(blocks2, 20);
+        assert_eq!(fts2, 20);
+        assert_eq!(ids_again, ids_before);
+
+        // 新增第 11 页:只追加,不重建前 10 页。
+        let statuses = service
+            .save_page_ocr_recognition("d1", "v1", &make_pages(11, 11), "k4")
+            .unwrap();
+        assert_eq!(statuses.len(), 11);
+        assert_eq!(
+            statuses
+                .iter()
+                .find(|row| row.page_number == 11)
+                .unwrap()
+                .block_count,
+            2
+        );
+        let (blocks3, fts3) = db
+            .read(|conn| {
+                let blocks: i64 = conn
+                    .query_row(
+                        "SELECT COUNT(*) FROM content_block WHERE parse_generation_id='g1' \
+                         AND origin='ocr' AND indexable=1",
+                        [],
+                        |r| r.get(0),
+                    )
+                    .map_err(|e| db_app_error(&e))?;
+                let fts: i64 = conn
+                    .query_row(
+                        "SELECT COUNT(*) FROM content_block_fts WHERE parse_generation_id='g1'",
+                        [],
+                        |r| r.get(0),
+                    )
+                    .map_err(|e| db_app_error(&e))?;
+                Ok((blocks, fts))
+            })
+            .unwrap();
+        assert_eq!(blocks3, 22);
+        assert_eq!(fts3, 22);
+        drop(service);
+        drop(db);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn page_scoped_ocr_skipped_persists_text_layer_status() {
+        use crate::parse_index::models::{PageOcrRecognitionPage, PageOcrStatus};
+
+        let path = std::env::temp_dir().join(format!(
+            "kw-ocr-skipped-{}.sqlite3",
+            crate::shared::SystemIdGenerator.new_entity_id()
+        ));
+        let db = Arc::new(Db::open(&path, 1).unwrap());
+        db.write(|conn| {
+            let migrations = crate::persistence::registration::migrations()
+                .into_iter()
+                .chain(crate::document::registration::migrations())
+                .chain(crate::parse_index::registration::migrations());
+            for migration in migrations {
+                conn.execute_batch(migration.sql)
+                    .map_err(|e| db_app_error(&e))?;
+            }
+            conn.execute_batch(
+                "INSERT INTO document(id,display_name,format,current_version_id,created_at,updated_at)
+                   VALUES ('d1','scan','pdf','v1',0,0);
+                 INSERT INTO document_version(id,document_id,fingerprint_status,created_at)
+                   VALUES ('v1','d1','ready',0);
+                 INSERT INTO parse_generation(id,document_version_id,parser_config_hash,parser_version,
+                   status,is_current,started_at)
+                   VALUES ('g1','v1','hash','parser/1','canceled',1,0);",
+            )
+            .map_err(|e| db_app_error(&e))?;
+            Ok(())
+        })
+        .unwrap();
+        let clock = Arc::new(crate::shared::SystemClock);
+        let ids = Arc::new(crate::shared::SystemIdGenerator);
+        let events = Arc::new(crate::shared::NoopEventSink);
+        let tasks = Arc::new(crate::persistence::task::TaskService::new(
+            db.clone(),
+            clock.clone(),
+            ids.clone(),
+            events.clone(),
+        ));
+        let service = ParseIndexService::new(db.clone(), clock, ids, events, tasks);
+        service
+            .save_page_ocr_recognition(
+                "d1",
+                "v1",
+                &[PageOcrRecognitionPage {
+                    page_number: 1,
+                    status: "skipped".into(),
+                    confidence: None,
+                    engine_version: None,
+                    error_code: None,
+                    blocks: vec![],
+                }],
+                "k1",
+            )
+            .unwrap();
+        let status = service.get_page_ocr_status("d1", "v1").unwrap();
+        let row = status.iter().find(|row| row.page_number == 1).unwrap();
+        assert_eq!(row.status, PageOcrStatus::Skipped);
+        assert_eq!(row.block_count, 0);
+        assert_eq!(row.generation_id.as_deref(), Some("g1"));
+        assert!(row.reasons.iter().any(|reason| reason == "text_layer_ok"));
+        let blocks: i64 = db
+            .read(|conn| {
+                conn.query_row(
+                    "SELECT COUNT(*) FROM content_block WHERE parse_generation_id='g1' \
+                     AND origin='ocr'",
+                    [],
+                    |r| r.get(0),
+                )
+                .map_err(|e| db_app_error(&e))
+            })
+            .unwrap();
+        assert_eq!(blocks, 0);
+        drop(service);
+        drop(db);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn page_ocr_report_pending_does_not_downgrade_completed_and_retry_keeps_pages() {
+        use crate::parse_index::models::{PageOcrReportEntry, PageOcrStatus};
+        use crate::shared::events::CollectingEventSink;
+
+        let id = crate::shared::SystemIdGenerator.new_entity_id();
+        let db_path = std::env::temp_dir().join(format!("kw-ocr-report-{id}.sqlite3"));
+        let input_path = std::env::temp_dir().join(format!("kw-ocr-report-{id}.pdf"));
+        std::fs::write(&input_path, b"%PDF-1.4\n").unwrap();
+        let input_size = std::fs::metadata(&input_path).unwrap().len() as i64;
+        let input_path_sql = input_path.to_string_lossy().to_string();
+        let db = Arc::new(Db::open(&db_path, 1).unwrap());
+        db.write(move |conn| {
+            let migrations = crate::persistence::registration::migrations()
+                .into_iter()
+                .chain(crate::document::registration::migrations())
+                .chain(crate::parse_index::registration::migrations());
+            for migration in migrations {
+                conn.execute_batch(migration.sql)
+                    .map_err(|e| db_app_error(&e))?;
+            }
+            conn.execute_batch(
+                "INSERT INTO document(id,display_name,format,current_version_id,created_at,updated_at)
+                   VALUES ('d1','scan','pdf','v1',0,0);
+                 INSERT INTO document_version(id,document_id,fingerprint_status,created_at)
+                   VALUES ('v1','d1','ready',0);",
+            )
+            .map_err(|e| db_app_error(&e))?;
+            conn.execute(
+                "INSERT INTO file_location(id,document_id,observed_version_id,path,is_primary, \
+                 last_seen_size,last_verified_at) VALUES ('l1','d1','v1',?1,1,?2,0)",
+                params![input_path_sql, input_size],
+            )
+            .map_err(|e| db_app_error(&e))?;
+            Ok(())
+        })
+        .unwrap();
+        let clock = Arc::new(crate::shared::SystemClock);
+        let ids = Arc::new(crate::shared::SystemIdGenerator);
+        let events = Arc::new(CollectingEventSink::default());
+        let tasks = Arc::new(crate::persistence::task::TaskService::new(
+            db.clone(),
+            clock.clone(),
+            ids.clone(),
+            events.clone(),
+        ));
+        let service = ParseIndexService::new(db.clone(), clock, ids, events.clone(), tasks);
+        let task = service
+            .start_parse("d1", "v1", "test", "report-guard")
+            .unwrap();
+        let (token, generation_id) = {
+            let captured = events.events.lock().unwrap();
+            let request = captured
+                .iter()
+                .find(|event| event.event_type == DomainEventType::ParserRequest)
+                .expect("parser.request emitted");
+            (
+                request.payload["token"].as_str().unwrap().to_string(),
+                request.payload["generationId"]
+                    .as_str()
+                    .unwrap()
+                    .to_string(),
+            )
+        };
+        let generation_id_sql = generation_id.clone();
+        db.write(move |conn| {
+            conn.execute(
+                "INSERT INTO page_ocr(document_version_id,page_number,parse_generation_id,status, \
+                 reasons_json,block_count,attempt,updated_at) \
+                 VALUES ('v1',1,?1,'completed','[]',1,0,0)",
+                [&generation_id_sql],
+            )
+            .map_err(|e| db_app_error(&e))?;
+            Ok(())
+        })
+        .unwrap();
+        let entry = |status: PageOcrStatus| PageOcrReportEntry {
+            page_number: 1,
+            status,
+            quality: None,
+            reasons: vec![],
+            render_hash: None,
+            engine_version: None,
+            confidence: None,
+            block_count: 0,
+            error_code: None,
+        };
+        service
+            .report_page_ocr(&token, &[entry(PageOcrStatus::Pending)])
+            .unwrap();
+        let row = service
+            .get_page_ocr_status("d1", "v1")
+            .unwrap()
+            .into_iter()
+            .find(|row| row.page_number == 1)
+            .unwrap();
+        assert_eq!(row.status, PageOcrStatus::Completed);
+        assert_eq!(row.block_count, 1);
+        assert_eq!(row.generation_id.as_deref(), Some(generation_id.as_str()));
+
+        service
+            .report_page_ocr(&token, &[entry(PageOcrStatus::OcrRunning)])
+            .unwrap();
+        let row = service
+            .get_page_ocr_status("d1", "v1")
+            .unwrap()
+            .into_iter()
+            .find(|row| row.page_number == 1)
+            .unwrap();
+        assert_eq!(row.status, PageOcrStatus::OcrRunning);
+
+        service
+            .report_page_ocr(
+                &token,
+                &[PageOcrReportEntry {
+                    page_number: 1,
+                    status: PageOcrStatus::Completed,
+                    quality: None,
+                    reasons: vec![],
+                    render_hash: None,
+                    engine_version: Some("test-engine".into()),
+                    confidence: Some(0.9),
+                    block_count: 1,
+                    error_code: None,
+                }],
+            )
+            .unwrap();
+        let row = service
+            .get_page_ocr_status("d1", "v1")
+            .unwrap()
+            .into_iter()
+            .find(|row| row.page_number == 1)
+            .unwrap();
+        assert_eq!(row.status, PageOcrStatus::Completed);
+        assert_eq!(row.block_count, 1);
+        assert_eq!(row.generation_id.as_deref(), Some(generation_id.as_str()));
+
+        // OCR 文本重跑允许变化：同 block_key 原地更新，不报 block_key_drift。
+        let locator = SourceLocator::pdf(1, vec![], PageRotation::R0);
+        let batch = |seq: i64, text: &str, ordinal: i64| ParserBatchInput {
+            batch_seq: seq,
+            blocks: vec![ParserBlockInput {
+                block_key: "ocr:p1:l0".into(),
+                ordinal,
+                parent_block_key: None,
+                kind: BlockKind::Paragraph,
+                text: text.into(),
+                heading_path: vec![],
+                locator: locator.clone(),
+                completeness: BlockCompleteness::Complete,
+                indexable: true,
+                origin: BlockOrigin::Ocr,
+                ocr_confidence: Some(0.5),
+            }],
+            regions: vec![ParserRegionInput {
+                region_key: "page:1".into(),
+                region_kind: RegionKind::Page,
+                status: RegionStatus::Complete,
+                block_count: 1,
+                order_confidence: OrderConfidence::High,
+                error_code: None,
+            }],
+            unsupported_regions: vec![],
+        };
+        service
+            .submit_batch(&token, batch(1, "old ocr text", 0))
+            .unwrap();
+        service
+            .submit_batch(&token, batch(2, "new ocr text", 1))
+            .unwrap();
+        let generation_id_read = generation_id.clone();
+        let (updated_text, updated_ordinal, updated_fts) = db
+            .read(move |conn| {
+                let text: String = conn
+                    .query_row(
+                        "SELECT text FROM content_block WHERE parse_generation_id=?1 \
+                         AND block_key='ocr:p1:l0'",
+                        [&generation_id_read],
+                        |r| r.get(0),
+                    )
+                    .map_err(|e| db_app_error(&e))?;
+                let ordinal: i64 = conn
+                    .query_row(
+                        "SELECT ordinal FROM content_block WHERE parse_generation_id=?1 \
+                         AND block_key='ocr:p1:l0'",
+                        [&generation_id_read],
+                        |r| r.get(0),
+                    )
+                    .map_err(|e| db_app_error(&e))?;
+                let fts: String = conn
+                    .query_row(
+                        "SELECT text FROM content_block_fts WHERE block_id=(\
+                           SELECT id FROM content_block WHERE parse_generation_id=?1 \
+                           AND block_key='ocr:p1:l0')",
+                        [&generation_id_read],
+                        |r| r.get(0),
+                    )
+                    .map_err(|e| db_app_error(&e))?;
+                Ok((text, ordinal, fts))
+            })
+            .unwrap();
+        assert_eq!(updated_text, "new ocr text");
+        assert_eq!(updated_ordinal, 1);
+        assert_eq!(updated_fts, "new ocr text");
+
+        // 取消后重试：同配置复用同一代次，page_ocr 不能被删除。
+        let current = service.tasks.get_task(&task.id).unwrap().unwrap();
+        service
+            .cancel_parse(&current.id, current.state_version)
+            .unwrap();
+        service.retry_parse(&task.id).unwrap();
+        let rows = service.get_page_ocr_status("d1", "v1").unwrap();
+        let row = rows.iter().find(|row| row.page_number == 1).unwrap();
+        assert_eq!(row.status, PageOcrStatus::Completed);
+        assert_eq!(row.block_count, 1);
+        assert_eq!(row.generation_id.as_deref(), Some(generation_id.as_str()));
+        drop(service);
+        drop(db);
+        let _ = std::fs::remove_file(&input_path);
+        let _ = std::fs::remove_file(&db_path);
     }
 }
