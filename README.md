@@ -115,10 +115,10 @@ The desktop build includes the optional local translation backend. ONNX Runtime 
 
 Release installers are built by GitHub Actions:
 
-- **Windows x64:** NSIS installer and MSI package. Installing v0.1.1 over v0.1.0 keeps the existing library; the bundle identifier and `%APPDATA%\com.knowwise.app` data directory are unchanged.
-- **macOS 13+:** separate Apple Silicon (`aarch64`) and Intel (`x64`) DMGs. Use the DMG that matches your Mac. v0.1.1 keeps the same bundle identifier and `~/Library/Application Support/com.knowwise.app` data directory, so installing over v0.1.0 preserves the library.
+- **Windows x64:** NSIS installer and MSI package. Installing v0.1.2 over v0.1.0 or v0.1.1 keeps the existing library; the bundle identifier and `%APPDATA%\com.knowwise.app` data directory are unchanged.
+- **macOS 13+:** separate Apple Silicon (`aarch64`) and Intel (`x64`) DMGs. Use the DMG that matches your Mac. v0.1.2 keeps the same bundle identifier and `~/Library/Application Support/com.knowwise.app` data directory, so installing over v0.1.0 or v0.1.1 preserves the library.
 - **macOS signing:** the app bundle inside each DMG is ad-hoc signed so it is sealed, but it is **not notarized** unless the release was built with Developer ID credentials. On first launch, use right-click → Open, or System Settings → Privacy & Security → Open Anyway. Do not disable Gatekeeper globally.
-- **Upgrade note:** v0.1.0 and v0.1.1 use the same data format for OCR status. Existing pages remain; new recognitions update pages in place without creating duplicate blocks.
+- **Upgrade note:** v0.1.2 accepts the migration checksums recorded by both LF-built v0.1.0/v0.1.1 installers and the CRLF-built v0.1.1 Windows installer. Upgrading does not rewrite the database, `schema_migration` records or OCR pages; existing pages remain and new recognitions update pages in place without creating duplicate blocks.
 
 ### Frontend-only checks
 
@@ -276,11 +276,11 @@ The Rust test suite covers persistence, parsing, anchors and citations, context 
 - **PDF reading is text-layer first.** Scanned pages use automatic or manual OCR; incremental and range recognition preserve pages that are already recognized. Complex layouts, handwriting and formulas are best effort. Low-confidence and zero-text pages are marked, not silently treated as covered.
 - **DOCX support is conservative.** Complex text boxes, comments and tracked changes are not fully reconstructed.
 - **No cross-document chat.** Questions are scoped to a frozen snapshot of one document (or selected artifacts).
-- **macOS builds are ad-hoc signed and not notarized by default.** v0.1.1 seals the app bundle with an ad-hoc signature, so Gatekeeper shows the normal “unidentified developer” prompt instead of the “damaged” error; use right-click → Open or System Settings → Privacy & Security → Open Anyway. Developer ID signing and notarization require release-time credentials; the release workflow uses `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, and either `APPLE_ID`/`APPLE_PASSWORD`/`APPLE_TEAM_ID` or `APPLE_API_ISSUER`/`APPLE_API_KEY`/`APPLE_API_KEY_P8` when those secrets are configured, otherwise it falls back to ad-hoc. Do not disable Gatekeeper globally.
+- **macOS builds are ad-hoc signed and not notarized by default.** v0.1.2 seals the app bundle with an ad-hoc signature, so Gatekeeper shows the normal “unidentified developer” prompt instead of the “damaged” error; use right-click → Open or System Settings → Privacy & Security → Open Anyway. Developer ID signing and notarization require release-time credentials; the release workflow uses `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, and either `APPLE_ID`/`APPLE_PASSWORD`/`APPLE_TEAM_ID` or `APPLE_API_ISSUER`/`APPLE_API_KEY`/`APPLE_API_KEY_P8` when those secrets are configured, otherwise it falls back to ad-hoc. Do not disable Gatekeeper globally.
 - **macOS UI launch and native OCR are not exercised by GitHub-hosted CI.** CI builds and verifies both arm64 and x64 DMGs, code signatures, Mach-O architectures and checksums; actual launch, Gatekeeper prompts and OCR UI must be verified on a Mac. Treat those as UNVERIFIED until tested there.
 - **macOS 13 is the declared minimum, not CI-tested.** CI uses current macOS runners; behavior on macOS 13 specifically is unverified. Apple Silicon arm64 was validated from source on macOS 26.4.1; Intel and macOS 13 remain unverified at runtime.
 - **Intel macOS runners are time-limited.** GitHub’s Intel macOS runner labels are available only through the published retirement window; if the x64 leg cannot be allocated, the release will not claim an Intel artifact.
-- **The bundle identifier remains `com.knowwise.app` in v0.1.1.** A trailing `.app` component is a known macOS anti-pattern (Tauri changed its scaffold default for this reason), but changing it now would move the Windows/macOS data directories and Keychain/LaunchServices identity. It is intentionally deferred to a versioned migration rather than silently changed in a patch release.
+- **The bundle identifier remains `com.knowwise.app` in v0.1.2.** A trailing `.app` component is a known macOS anti-pattern (Tauri changed its scaffold default for this reason), but changing it now would move the Windows/macOS data directories and Keychain/LaunchServices identity. It is intentionally deferred to a versioned migration rather than silently changed in a patch release.
 - **Local translation downloads are optional and separate.** The repository does not contain model weights or ONNX Runtime binaries.
 - **No telemetry and no auto-update.** The app does not phone home.
 
@@ -323,7 +323,7 @@ Yes. Run Ollama locally and add a loopback provider (for example `http://127.0.0
 See [Privacy and data](#privacy-and-data). Use **Settings → Privacy** to clear categories, or delete the data directory after closing the app. Original PDFs/Markdown/DOCX files are not modified.
 
 **macOS says the app cannot be opened.**
-v0.1.1 macOS app bundles are ad-hoc signed but not notarized. Use right-click → Open, or System Settings → Privacy & Security → Open Anyway. Make sure you downloaded the DMG matching your Mac: `aarch64` for Apple Silicon, `x64` for Intel. Do not disable Gatekeeper globally.
+v0.1.2 macOS app bundles are ad-hoc signed but not notarized. Use right-click → Open, or System Settings → Privacy & Security → Open Anyway. Make sure you downloaded the DMG matching your Mac: `aarch64` for Apple Silicon, `x64` for Intel. Do not disable Gatekeeper globally.
 
 **Does the app work without a network?**
 Reading, search, OCR, notes, bookmarks, the knowledge graph and local translation work offline. Model-backed Q&A/generation requires the configured provider.

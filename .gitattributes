@@ -1,0 +1,3 @@
+# Migration SQL is embedded with include_str! and hashed at build time.
+# Force LF on every platform so checksums do not depend on core.autocrlf.
+src-tauri/migrations/**/*.sql text eol=lf

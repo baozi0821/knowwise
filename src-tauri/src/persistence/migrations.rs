@@ -23,8 +23,28 @@ pub struct Migration {
 }
 
 impl Migration {
+    /// LF 规范化后的 SQL;校验和只基于这一形式,不受 checkout 行尾影响。
+    fn normalized_sql(&self) -> String {
+        self.sql.replace("\r\n", "\n")
+    }
+
     pub fn checksum(&self) -> String {
-        sha256_hex(self.sql.as_bytes())
+        sha256_hex(self.normalized_sql().as_bytes())
+    }
+
+    /// 兼容历史数据库中的校验和:
+    /// 1) 规范化 LF(本版本起写入的新格式);
+    /// 2) 原始嵌入文本(旧 LF 检出构建);
+    /// 3) 全部转成 CRLF(旧 Windows CI 检出构建)。
+    pub fn accepts_checksum(&self, applied: &str) -> bool {
+        if applied == self.checksum() {
+            return true;
+        }
+        if applied == sha256_hex(self.sql.as_bytes()) {
+            return true;
+        }
+        let crlf = self.normalized_sql().replace('\n', "\r\n");
+        applied == sha256_hex(crlf.as_bytes())
     }
 }
 
@@ -117,7 +137,7 @@ impl MigrationRunner {
         for m in sets {
             match applied_checksum(conn, m)? {
                 Some(checksum) => {
-                    if checksum != m.checksum() {
+                    if !m.accepts_checksum(&checksum) {
                         return Err(MigrationError::ChecksumMismatch {
                             module: m.module.to_string(),
                             version: m.version,
@@ -448,6 +468,134 @@ mod tests {
             matches!(err, MigrationError::UnknownAppliedMigration(ref list) if list.len() == 1),
             "got {err:?}"
         );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    const LF_SQL: &str = "CREATE TABLE a(x INTEGER);\nCREATE TABLE b(y TEXT);\n";
+    const CRLF_SQL: &str = "CREATE TABLE a(x INTEGER);\r\nCREATE TABLE b(y TEXT);\r\n";
+
+    fn migration_with(sql: &'static str) -> Migration {
+        Migration {
+            module: "t",
+            version: 1,
+            name: "line-endings",
+            sql,
+        }
+    }
+
+    #[test]
+    fn checksum_is_line_ending_independent() {
+        // 同一份 SQL 以 LF/CRLF 嵌入时必须得到同一个校验和。
+        assert_eq!(
+            migration_with(LF_SQL).checksum(),
+            migration_with(CRLF_SQL).checksum()
+        );
+    }
+
+    #[test]
+    fn accepts_legacy_lf_and_crlf_checksums() {
+        let lf = migration_with(LF_SQL);
+        let crlf = migration_with(CRLF_SQL);
+        let legacy_lf = sha256_hex(LF_SQL.as_bytes());
+        let legacy_crlf = sha256_hex(CRLF_SQL.as_bytes());
+
+        for m in [&lf, &crlf] {
+            assert!(m.accepts_checksum(&legacy_lf), "旧 LF 校验和必须被接受");
+            assert!(m.accepts_checksum(&legacy_crlf), "旧 CRLF 校验和必须被接受");
+            assert!(m.accepts_checksum(&m.checksum()));
+        }
+        assert!(
+            !lf.accepts_checksum(&sha256_hex(
+                b"CREATE TABLE a(x INTEGER);\nCREATE TABLE c(z BLOB);\n"
+            )),
+            "SQL 内容真正变化时不得接受"
+        );
+    }
+
+    #[test]
+    fn runner_accepts_databases_with_legacy_checksums() {
+        // v0.1.0 的 LF 构建与 v0.1.1 Windows CRLF 构建写下的记录都要能继续启动。
+        let lf_sql = m01()[0].sql.replace("\r\n", "\n");
+        let lf_checksum = sha256_hex(lf_sql.as_bytes());
+        let crlf_checksum = sha256_hex(lf_sql.replace('\n', "\r\n").as_bytes());
+        assert_ne!(lf_checksum, crlf_checksum);
+
+        for (tag, legacy) in [("legacy-lf", &lf_checksum), ("legacy-crlf", &crlf_checksum)] {
+            let dir = temp_path(tag);
+            let db_path = dir.join("legacy.sqlite3");
+            let _ = std::fs::remove_file(&db_path);
+            let mut conn = Connection::open(&db_path).unwrap();
+            let runner = MigrationRunner::new(dir.join("backups"));
+            runner.run(&mut conn, &m01(), &db_path, 1000).unwrap();
+
+            conn.execute(
+                "UPDATE schema_migration SET checksum=?1 WHERE module='m01' AND version=1",
+                rusqlite::params![legacy.as_str()],
+            )
+            .unwrap();
+
+            let report = runner.run(&mut conn, &m01(), &db_path, 2000).unwrap();
+            assert!(report.applied.is_empty(), "{tag}: 不得重复执行迁移");
+            assert_eq!(report.skipped_already_applied, 1, "{tag}");
+            let rows: i64 = conn
+                .query_row("SELECT COUNT(*) FROM schema_migration", [], |r| r.get(0))
+                .unwrap();
+            assert_eq!(rows, 1, "{tag}: 不得重复写入迁移记录");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+    }
+
+    #[test]
+    fn new_migrations_record_normalized_checksum() {
+        // 即使构建时嵌入的是 CRLF,写库的也必须是稳定的 LF 校验和。
+        const APPLY_SQL: &str =
+            "CREATE TABLE line_end_test(x INTEGER);\r\nINSERT INTO line_end_test VALUES (1);\r\n";
+        let dir = temp_path("record-normalized");
+        let db_path = dir.join("record.sqlite3");
+        let _ = std::fs::remove_file(&db_path);
+        let mut conn = Connection::open(&db_path).unwrap();
+        let runner = MigrationRunner::new(dir.join("backups"));
+        let sets = vec![migration_with(APPLY_SQL)];
+        runner.run(&mut conn, &sets, &db_path, 1000).unwrap();
+
+        let recorded: String = conn
+            .query_row(
+                "SELECT checksum FROM schema_migration WHERE module='t' AND version=1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(recorded, sets[0].checksum());
+        assert_eq!(
+            recorded,
+            sha256_hex(APPLY_SQL.replace("\r\n", "\n").as_bytes()),
+            "新写入的校验和必须是规范化 LF 值"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn fresh_db_applies_all_registered_migrations() {
+        let sets = crate::app_shell::all_migrations();
+        assert_eq!(sets.len(), 27, "迁移文件与注册数量必须一致");
+
+        let dir = temp_path("all-migrations");
+        let db_path = dir.join("all.sqlite3");
+        let _ = std::fs::remove_file(&db_path);
+        let mut conn = Connection::open(&db_path).unwrap();
+        let runner = MigrationRunner::new(dir.join("backups"));
+        let report = runner.run(&mut conn, &sets, &db_path, 1000).unwrap();
+        assert_eq!(report.applied.len(), 27);
+        assert!(report.backup_path.is_some());
+
+        let rows: i64 = conn
+            .query_row("SELECT COUNT(*) FROM schema_migration", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(rows, 27);
+
+        let again = runner.run(&mut conn, &sets, &db_path, 2000).unwrap();
+        assert!(again.applied.is_empty());
+        assert_eq!(again.skipped_already_applied, 27);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -131,8 +131,8 @@ jobs:
             ## Downloads
 
             - **Windows x64:** NSIS installer and MSI package.
-            - **macOS 13+ (Apple Silicon):** `Knowwise_${{ github.ref_name }}_aarch64.dmg`.
-            - **macOS 13+ (Intel):** `Knowwise_${{ github.ref_name }}_x64.dmg`.
+            - **macOS 13+ (Apple Silicon):** the `aarch64` DMG.
+            - **macOS 13+ (Intel):** the `x64` DMG.
             - **Checksums:** `SHA256SUMS-windows-x64.txt`, `SHA256SUMS-macos-arm64.txt`, `SHA256SUMS-macos-x64.txt`.
 
             ## OCR
@@ -148,7 +148,7 @@ jobs:
 
             ## Upgrade
 
-            v0.1.1 keeps the same bundle identifier and data directories. Installing over v0.1.0 keeps the existing library, indexes, notes and settings; the OCR changes only affect future recognition and preserve existing pages.
+            v0.1.2 keeps the same bundle identifier and data directories. Installing over v0.1.0 or v0.1.1 keeps the existing library, indexes, notes and settings. Migration checksums are now line-ending independent: databases written by the LF-built v0.1.0/v0.1.1 installers and by the CRLF-built v0.1.1 Windows installer are both accepted. No migration record, database or user data is rewritten.
 
             ## Configuration
 
