@@ -587,6 +587,44 @@ async function main() {
     pages: [autoRows.get(1), autoRows.get(2)],
   });
 
+  // 解析完成后开启自动 OCR：已终态文档的缺失页应由阅读器补识别，
+  // 而不是只对“开启后新导入”的文档生效。
+  await setAutoOcr(false);
+  const lateName = `ocr-late-2-${STAMP}`;
+  const latePath = path.join(TEMP_DIR, `${lateName}.pdf`);
+  await makeScanPdf(latePath, 2);
+  const lateDoc = await importAndOpen(latePath, lateName);
+  await waitParseTerminal(lateDoc.documentId, 240000);
+  const latePending = await statusMap(lateDoc.documentId, lateDoc.versionId);
+  record(
+    "自动 OCR 关闭时已解析文档保持 pending",
+    [1, 2].every((page) => latePending.get(page)?.status === "pending"),
+    { pages: [latePending.get(1), latePending.get(2)] },
+  );
+
+  await setAutoOcr(true);
+  await cdp.send("Page.reload");
+  await sleep(3500);
+  await waitFor(() => cdp.eval(`!!document.querySelector('.doc-sidebar')`), 20000, "侧栏加载");
+  await openDocumentByName(lateName);
+  await waitFor(async () => {
+    const rows = await statusMap(lateDoc.documentId, lateDoc.versionId);
+    return [1, 2].every((page) => {
+      const row = rows.get(page);
+      return (
+        row !== undefined &&
+        (row.status === "completed" || row.status === "low_confidence") &&
+        row.blockCount > 0
+      );
+    });
+  }, 120000, "解析完成后自动 OCR 完成");
+  const lateRows = await statusMap(lateDoc.documentId, lateDoc.versionId);
+  record(
+    "解析完成后开启自动 OCR 可补识别",
+    [1, 2].every((page) => lateRows.get(page)?.blockCount > 0),
+    { pages: [lateRows.get(1), lateRows.get(2)] },
+  );
+
   const failed = RESULTS.filter((entry) => !entry.pass);
   console.log(`\n${RESULTS.length - failed.length}/${RESULTS.length} checks passed`);
   if (failed.length > 0) {

@@ -1627,7 +1627,17 @@ impl ParseIndexService {
                 fts_state,
                 vector_state,
                 capability,
-                active_task_id: gen.as_ref().and_then(|g| g.task_id.clone()),
+                active_task_id: gen
+                    .as_ref()
+                    .filter(|g| {
+                        matches!(
+                            g.status,
+                            GenerationStatus::Queued
+                                | GenerationStatus::Parsing
+                                | GenerationStatus::Indexing
+                        )
+                    })
+                    .and_then(|g| g.task_id.clone()),
             })
         })
     }
@@ -3422,6 +3432,80 @@ mod tests {
     fn base64_helper_roundtrip_shape() {
         let encoded = crate::shared::dto::base64_encode(&[0u8, 1, 2, 250, 251]);
         assert!(!encoded.is_empty() && !encoded.contains(' '));
+    }
+
+    #[test]
+    fn active_task_id_only_exposed_while_parse_is_active() {
+        // 解析完成后 task_id 仍留在代次行上;视图必须只在进行中状态下暴露它,
+        // 否则前端“解析完成后自动补识别”会被永久挡住。
+        let path = std::env::temp_dir().join(format!(
+            "kw-parse-status-{}.sqlite3",
+            crate::shared::SystemIdGenerator.new_entity_id()
+        ));
+        let db = Arc::new(Db::open(&path, 1).unwrap());
+        db.write(|conn| {
+            let migrations = crate::persistence::registration::migrations()
+                .into_iter()
+                .chain(crate::document::registration::migrations())
+                .chain(crate::parse_index::registration::migrations());
+            for migration in migrations {
+                conn.execute_batch(migration.sql)
+                    .map_err(|e| db_app_error(&e))?;
+            }
+            conn.execute_batch(
+                "INSERT INTO document(id,display_name,format,current_version_id,created_at,updated_at)
+                   VALUES ('d1','scan','pdf','v1',0,0);
+                 INSERT INTO document_version(id,document_id,fingerprint_status,created_at)
+                   VALUES ('v1','d1','ready',0);
+                 INSERT INTO parse_generation(id,document_version_id,parser_config_hash,parser_version,
+                   status,is_current,task_id,started_at)
+                   VALUES ('g1','v1','hash','parser/1','parsing',1,'t1',0);",
+            )
+            .map_err(|e| db_app_error(&e))?;
+            Ok(())
+        })
+        .unwrap();
+        let clock = Arc::new(crate::shared::SystemClock);
+        let ids = Arc::new(crate::shared::SystemIdGenerator);
+        let events = Arc::new(crate::shared::NoopEventSink);
+        let tasks = Arc::new(crate::persistence::task::TaskService::new(
+            db.clone(),
+            clock.clone(),
+            ids.clone(),
+            events.clone(),
+        ));
+        let service = ParseIndexService::new(db.clone(), clock, ids, events, tasks);
+
+        for (status, expected) in [
+            ("queued", true),
+            ("parsing", true),
+            ("indexing", true),
+            ("complete", false),
+            ("partial", false),
+            ("failed", false),
+            ("canceled", false),
+        ] {
+            db.write(move |conn| {
+                conn.execute(
+                    "UPDATE parse_generation SET status=?1 WHERE id='g1'",
+                    rusqlite::params![status],
+                )
+                .map_err(|e| db_app_error(&e))?;
+                Ok(())
+            })
+            .unwrap();
+            let view = service.get_status("d1").unwrap();
+            assert_eq!(
+                view.active_task_id.is_some(),
+                expected,
+                "status={status} 时 active_task_id 暴露状态不正确"
+            );
+        }
+        drop(service);
+        drop(db);
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(path.with_extension("sqlite3-wal"));
+        let _ = std::fs::remove_file(path.with_extension("sqlite3-shm"));
     }
 
     #[test]
