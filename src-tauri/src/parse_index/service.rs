@@ -1399,7 +1399,7 @@ impl ParseIndexService {
             };
 
             let has_text_layer = match (&gen, format) {
-                (Some(_), DocumentFormat::Pdf) => Some(!(no_text_all || (!has_blocks))),
+                (Some(_), DocumentFormat::Pdf) => Some(!no_text_all && has_blocks),
                 _ => None,
             };
 

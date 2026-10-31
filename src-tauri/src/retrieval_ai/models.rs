@@ -375,10 +375,10 @@ fn normalize_segments(object: &mut serde_json::Map<String, serde_json::Value>) {
                     .map(normalize_segment_kind)
                     .unwrap_or("general_note");
                 map.insert("kind".into(), serde_json::Value::String(kind.into()));
-                if !map
+                if map
                     .get("text")
                     .and_then(|v| v.as_str())
-                    .is_some_and(|t| !t.trim().is_empty())
+                    .is_none_or(|t| t.trim().is_empty())
                 {
                     let text = map
                         .get("content")

@@ -1402,10 +1402,10 @@ fn record_visible_sources(json: &str, ctx: &AgentToolContext, visible: &mut Hash
     };
     for item in items {
         if item.get("kind").and_then(|v| v.as_str()) == Some("artifact")
-            || !item
+            || item
                 .get("text")
                 .and_then(|v| v.as_str())
-                .is_some_and(|text| !text.trim().is_empty())
+                .is_none_or(|text| text.trim().is_empty())
         {
             continue;
         }
