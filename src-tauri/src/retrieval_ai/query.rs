@@ -317,10 +317,9 @@ mod tests {
     }
 
     #[test]
-    fn stopwords_removed_but_question_words_kept_by_config() {
+    fn stopwords_and_question_words_are_removed() {
         let q = parse_query("这是什么 the of 是");
-        assert!(!q.keywords.iter().any(|k| k == "什么" && !is_negation(k)) || true);
-        assert!(!q.keywords.iter().any(|k| k.eq_ignore_ascii_case("the")));
+        assert_eq!(q.keywords, ["这是", "是什"]);
     }
 
     #[test]
