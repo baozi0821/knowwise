@@ -1,0 +1,50 @@
+/* 主阅读区「资料阅览」:整页滚动阅读 AI 产物。 */
+
+.artifact-reading-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  background: var(--surface);
+}
+
+.artifact-reading-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-soft);
+}
+
+.artifact-reading-caption {
+  font-size: 0.75rem;
+  color: var(--ink-muted, #64748b);
+}
+
+.artifact-reading-spacer {
+  flex: 1 1 auto;
+}
+
+.artifact-reading-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px 20px 32px;
+}
+
+/* 阅读区里不重复卡片边框与内滚动:整页滚动由上方容器负责。 */
+.artifact-reading-scroll .artifact-reader {
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  max-width: 78ch;
+  margin: 0 auto;
+}
+
+.artifact-reading-state {
+  margin: 16px;
+  color: var(--ink-muted, #64748b);
+}

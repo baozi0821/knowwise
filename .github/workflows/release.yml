@@ -1,0 +1,100 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build installers (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            bundles: nsis,msi
+          - os: macos-latest
+            bundles: app,dmg
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - name: Build installers
+        run: npm run tauri build -- --bundles ${{ matrix.bundles }}
+      - name: Checksums
+        run: |
+          node scripts/checksums.mjs src-tauri/target/release/bundle
+          mv src-tauri/target/release/bundle/SHA256SUMS.txt "src-tauri/target/release/bundle/SHA256SUMS-${{ runner.os }}.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.os }}
+          path: |
+            src-tauri/target/release/bundle/**/*.exe
+            src-tauri/target/release/bundle/**/*.msi
+            src-tauri/target/release/bundle/**/*.dmg
+            src-tauri/target/release/bundle/SHA256SUMS-*.txt
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: List release assets
+        run: find release-assets -maxdepth 3 -type f -printf '%p %s bytes\n'
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          body: |
+            Knowwise ${{ github.ref_name }}.
+
+            ## Downloads
+
+            - **Windows x64:** NSIS installer and MSI package.
+            - **macOS 13+:** DMG. The macOS build is unsigned and not notarized in v0.1.0; use right-click → Open or build from source.
+            - **Checksums:** `SHA256SUMS-Windows.txt` and `SHA256SUMS-macOS.txt`.
+
+            ## Configuration
+
+            Model-backed features require an OpenAI-compatible provider or a local Ollama instance, configured in Settings. API keys are stored in the operating system credential store. Without a provider, reading, search, OCR, notes, bookmarks, the knowledge graph and local translation remain available.
+
+            ## Optional local translation
+
+            The OPUS-MT ONNX models and ONNX Runtime are **not** bundled in the installers. From a source checkout, install them with:
+
+            ```bash
+            npm run models:install
+            ```
+
+            The installer verifies pinned SHA-256 hashes and writes only into the Knowwise data directory. See the README for model licenses (CC-BY-4.0) and platform support. The desktop installers themselves do not require Node.js; the local translation download is an optional source-checkout step.
+
+            ## Notes
+
+            - No model weights, API keys or user data are included in this release.
+            - macOS artifacts are built by GitHub Actions; local OPUS-MT support covers macOS arm64 and x64.
+            - See the README for known limitations and troubleshooting.
+          files: release-assets/**/*
+          fail_on_unmatched_files: true
+          generate_release_notes: false

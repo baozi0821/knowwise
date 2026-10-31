@@ -1,0 +1,83 @@
+{
+  "name": "knowwise",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Local-first AI document reader for PDF, Markdown and DOCX.",
+  "license": "MIT",
+  "author": "Knowwise contributors",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/baozi0821/knowwise.git"
+  },
+  "homepage": "https://github.com/baozi0821/knowwise#readme",
+  "bugs": {
+    "url": "https://github.com/baozi0821/knowwise/issues"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "tauri",
+    "rust",
+    "react",
+    "pdf",
+    "docx",
+    "markdown",
+    "ocr",
+    "translation",
+    "knowledge-graph",
+    "sqlite",
+    "ai"
+  ],
+  "scripts": {
+    "dev": "npm run ocr:assets && vite",
+    "build": "npm run ocr:assets && tsc --noEmit && vite build",
+    "ocr:assets": "node scripts/ocr-assets.mjs",
+    "typecheck": "tsc --noEmit",
+    "models:install": "node scripts/install-models.mjs",
+    "models:check": "node scripts/install-models.mjs --check",
+    "notices": "node scripts/third-party-notices.mjs",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.59.0",
+    "@tauri-apps/api": "^2.12.4",
+    "@tauri-apps/plugin-clipboard-manager": "^2.5.0",
+    "@tauri-apps/plugin-dialog": "^2.8.3",
+    "@tauri-apps/plugin-opener": "^2.7.2",
+    "@tesseract.js-data/chi_sim": "1.0.0",
+    "@tesseract.js-data/eng": "1.0.0",
+    "dompurify": "^3.1.7",
+    "highlight.js": "^11.12.0",
+    "katex": "^0.19.1",
+    "lucide-react": "^1.61.0",
+    "mammoth": "^1.8.0",
+    "mdast-util-from-markdown": "^2.0.2",
+    "mdast-util-gfm": "^3.1.0",
+    "mermaid": "^12.2.0",
+    "micromark-extension-gfm": "^3.0.0",
+    "pdfjs-dist": "^4.7.76",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^9.0.1",
+    "rehype-highlight": "^7.0.2",
+    "rehype-katex": "^7.0.1",
+    "remark-gfm": "^4.0.0",
+    "remark-math": "^6.0.0",
+    "tesseract.js": "6.0.1",
+    "zustand": "^5.0.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.4",
+    "@types/mdast": "^4.0.4",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.2",
+    "autoprefixer": "^10.6.1",
+    "postcss": "^8.5.31",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.9"
+  }
+}

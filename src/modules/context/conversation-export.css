@@ -1,0 +1,84 @@
+/* M07 会话导出入口:与产物中心同域,但独立于 AI 面板。 */
+.conversation-export {
+  margin-top: 14px;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.conversation-export-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.conversation-export-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 0.8125rem;
+  color: #475569;
+}
+
+.conversation-export-hint {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.conversation-export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.conversation-export-status {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #475569;
+}
+
+
+/* 会话导出弹窗样式 */
+.conversation-export-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(520px, 92vw);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: rise 0.2s var(--ease-out);
+}
+
+.conversation-export-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-soft);
+}
+
+.conversation-export-head-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.conversation-export-modal-body {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.conversation-export-modal-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+}

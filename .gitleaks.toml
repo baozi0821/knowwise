@@ -1,0 +1,11 @@
+title = "Knowwise secret scanning"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "localStorage/shortcut identifiers flagged as generic API keys"
+paths = [
+  '''src/app/theme\.ts''',
+  '''src/modules/workspace/shortcuts\.ts''',
+]

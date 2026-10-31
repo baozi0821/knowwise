@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="Knowwise logo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#15151b"/>
+      <stop offset="1" stop-color="#2b2b3c"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.78" cy="0.2" r="0.55">
+      <stop offset="0" stop-color="#8f8ff2" stop-opacity="0.34"/>
+      <stop offset="1" stop-color="#8f8ff2" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="page" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fbf7ee"/>
+      <stop offset="1" stop-color="#e6dfcf"/>
+    </linearGradient>
+    <linearGradient id="cover" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#9b9bf6"/>
+      <stop offset="1" stop-color="#7474d8"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#08080c" flood-opacity="0.55"/>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
+  <rect width="1024" height="1024" rx="224" fill="url(#glow)"/>
+
+  <g filter="url(#soft)">
+    <path d="M176 392 C360 336 460 360 512 404 C564 360 664 336 848 392 L848 700 C664 656 564 676 512 720 C460 676 360 656 176 700 Z" fill="url(#cover)"/>
+    <path d="M210 428 C370 382 462 400 496 432 L496 676 C462 650 370 632 210 672 Z" fill="url(#page)"/>
+    <path d="M814 428 C654 382 562 400 528 432 L528 676 C562 650 654 632 814 672 Z" fill="url(#page)"/>
+    <path d="M496 432 C504 420 520 420 528 432 L528 676 C520 688 504 688 496 676 Z" fill="#6a6ac8"/>
+  </g>
+
+  <g stroke="#b8b09f" stroke-width="10" stroke-linecap="round" opacity="0.55">
+    <path d="M262 486 C348 462 420 468 462 490"/>
+    <path d="M262 540 C348 516 420 522 462 544"/>
+    <path d="M262 594 C348 570 420 576 462 598"/>
+    <path d="M262 648 C320 630 386 628 446 646"/>
+    <path d="M762 486 C676 462 604 468 562 490"/>
+    <path d="M762 540 C676 516 604 522 562 544"/>
+    <path d="M762 594 C676 570 604 576 562 598"/>
+    <path d="M762 648 C704 630 638 628 578 646"/>
+  </g>
+
+  <g fill="#f5c76a">
+    <path d="M790 206 L812 280 L886 302 L812 324 L790 398 L768 324 L694 302 L768 280 Z"/>
+    <path d="M884 174 L893 204 L923 213 L893 222 L884 252 L875 222 L845 213 L875 204 Z" opacity="0.78"/>
+  </g>
+</svg>

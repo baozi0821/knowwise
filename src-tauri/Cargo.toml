@@ -1,0 +1,123 @@
+[package]
+name = "knowwise"
+version = "0.1.0"
+description = "Local-first AI document reader for PDF, Markdown and DOCX"
+authors = ["Knowwise contributors"]
+license = "MIT"
+repository = "https://github.com/baozi0821/knowwise"
+homepage = "https://github.com/baozi0821/knowwise#readme"
+readme = "../README.md"
+edition = "2021"
+rust-version = "1.88"
+default-run = "knowwise"
+keywords = ["tauri", "pdf", "ocr", "translation", "knowledge-graph"]
+categories = ["productivity", "education"]
+
+[lib]
+name = "knowwise_lib"
+# 桌面 Windows 只需要 rlib(主程序)与 staticlib(集成测试/链接);
+# windows-gnu 的 cdylib 导出表上限为 65535 个符号,模块增长后会链接失败,
+# 而本项目不做移动端 cdylib,故移除该 crate-type。
+crate-type = ["staticlib", "rlib"]
+
+[[bin]]
+name = "knowwise"
+path = "src/main.rs"
+required-features = ["desktop"]
+
+# M00 已验证决策(windows-gnu 工具链):默认特性不含 Tauri,保证核心业务模块
+# (shared/persistence/document/parse_index/evidence)的测试二进制不链接
+# WebView2 运行时即可运行。桌面壳(app_shell、#[tauri::command] 命令层、
+# generate_context)全部位于 `desktop` feature 之后;命令层保持薄封装,
+# 业务逻辑与测试位于无 Tauri 依赖的服务层,与《00_总览》§3.1 的
+# “跨模块调用发生在应用服务或 Port 上”一致。
+[features]
+default = []
+# M13:壳层插件(单实例/对话框/剪贴板/外部链接)与 Tauri 一并位于
+# desktop 之后;默认特性的测试二进制不链接 WebView 运行时。
+desktop = [
+  "dep:tauri",
+  "dep:tauri-plugin-single-instance",
+  "dep:tauri-plugin-dialog",
+  "dep:tauri-plugin-clipboard-manager",
+  "dep:tauri-plugin-opener",
+  # Desktop builds include the local OPUS-MT backend; the runtime library and
+  # model weights are installed separately (scripts/install-models.mjs).
+  "local-mt",
+]
+custom-protocol = [
+  "desktop",
+  "tauri/custom-protocol",
+]
+# 离线翻译(OPUS-MT/ONNX)。默认关闭:需要 ort + tokenizers 两个 crate
+# 以及 ONNX Runtime 动态库。开启后翻译优先走本地引擎,不联网、不调大模型。
+local-mt = ["dep:ort", "dep:tokenizers"]
+
+# build-dep 无法用 cfg 门控:保持非 optional,build.rs 按环境变量条件调用。
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [], optional = true }
+# single-instance 锁定 <2.5:2.5.x 要求 rustc ≥1.90,超出本仓库 1.85 基线。
+tauri-plugin-single-instance = { version = "=2.4.5", optional = true }
+tauri-plugin-dialog = { version = "2.7.3", optional = true }
+tauri-plugin-clipboard-manager = { version = "2.3.3", optional = true }
+tauri-plugin-opener = { version = "2.5.5", optional = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+ts-rs = "10"
+schemars = "0.8"
+rusqlite = { version = "0.32", features = ["bundled", "backup"] }
+uuid = { version = "1", features = ["v5", "v7"] }
+sha2 = "0.10"
+hex = "0.4"
+base64 = "0.22"
+# capture:原生截图 PNG 编码(仅此一个新 crate;Win32 GDI 用裸 FFI,不引 windows)。
+# 版本取 0.18:本机 crates 缓存/Cargo.lock 已有 0.18.1(离线可构建),API 与 0.17 一致。
+png = "0.18"
+# WBS-4C:摘要 → docx(纯 Rust,无外部 Office 依赖)。
+# 精确锁版:导出字节确定性依赖其 ZIP 条目顺序/时间戳行为;
+# 关闭默认 image feature(本项目导出不含图片,避免额外编解码依赖)。
+# 注意:其传递依赖 zip 8.6 声明 MSRV 1.88(CI/本机 stable 满足;
+# 若坚持 1.85 基线需整体升级 rust-version,本任务不改基线)。
+docx-rs = { version = "=0.4.22", default-features = false }
+unicode-normalization = "0.1"
+# Offline translation (optional, feature = "local-mt").
+# ort uses load-dynamic so the app never links ONNX Runtime at build time; the
+# runtime library is loaded from the app data directory at runtime. Model
+# weights are never bundled with the source repository (see scripts/install-models).
+ort = { version = "=2.0.0-rc.15", optional = true, default-features = false, features = ["std", "ndarray", "load-dynamic"] }
+tokenizers = { version = "=0.23.2", optional = true, default-features = false, features = ["onig"] }
+rand = "0.8"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+tokio-util = "0.7"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# M08:唯一网络出口(EgressGateway)与协议适配器专用 HTTP 客户端。
+# 禁自动重定向、禁代理环境变量继承(客户端构建时显式关闭),仅连接设置中的目的地。
+# TLS 用 native-tls(Windows schannel):windows-gnu 工具链 + 非 ASCII 用户路径
+# 下 ring 的预生成对象无法通过 ar 归档(已验证),rustls 不可用。
+reqwest = { version = "0.12", default-features = false, features = ["json", "native-tls"] }
+
+# M08:远程密钥只进系统凭据存储(Windows Credential Manager / macOS Keychain)。
+# 凭据服务不可用时返回 SECRET_STORE_UNAVAILABLE,禁止退回明文文件;
+# 其他平台不编译 keyring,凭据存储恒为不可用(不降级明文)。
+[target.'cfg(any(windows, target_os = "macos"))'.dependencies]
+keyring = { version = "3", features = ["windows-native", "apple-native"] }
+
+# M14 测试工装依赖(仅测试目标,不进发布二进制):
+# - proptest:取消/幂等/RRF/定位的属性测试(固定 seed,失败可复现)。
+# - insta:Schema、导出与错误映射快照(diff 必须解释,不批量接受)。
+# - zip:WBS-4C docx 导出测试回读(只读;default-features=false 保证不引入
+#   zip 的 time feature,避免条目时间戳变成“当前时间”破坏确定性)。
+[dev-dependencies]
+proptest = "1"
+insta = { version = "1", features = ["json"] }
+zip = { version = "8.6", default-features = false }
+
+[profile.dev]
+opt-level = 0
+debug = 1

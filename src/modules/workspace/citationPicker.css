@@ -1,0 +1,182 @@
+/* 「引用资料」选择器与 chip。 */
+
+.cited-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 2px 2px;
+}
+
+.cited-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #3730a3;
+  border-radius: 999px;
+  padding: 2px 4px 2px 8px;
+  font-size: 0.72rem;
+}
+
+.cited-chip-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}
+
+.cited-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 999px;
+  padding: 2px;
+}
+
+.cited-chip-remove:hover {
+  background: rgba(55, 48, 163, 0.12);
+}
+
+.citation-picker {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+}
+
+.citation-picker-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  color: #0f172a;
+}
+
+.citation-picker-scope {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.citation-picker-search input {
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 0.78rem;
+}
+
+.citation-picker-empty {
+  margin: 0;
+  font-size: 0.76rem;
+  color: #64748b;
+}
+
+.citation-picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.citation-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 6px 8px;
+  font-size: 0.78rem;
+  color: #334155;
+  cursor: pointer;
+}
+
+.citation-picker-item:hover {
+  background: #f8fafc;
+}
+
+.citation-picker-item.selected {
+  border-color: #a5b4fc;
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.citation-picker-kind {
+  flex: 0 0 auto;
+  font-size: 0.66rem;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.citation-picker-title {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.citation-picker-item:focus-visible,
+.cited-chip-remove:focus-visible,
+.citation-picker-search input:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+}
+
+.dark .citation-picker {
+  background: #0f172a;
+  border-color: #1e293b;
+}
+
+.dark .citation-picker-head {
+  color: #e2e8f0;
+}
+
+.dark .citation-picker-search input {
+  background: #0f172a;
+  border-color: #1e293b;
+  color: #e2e8f0;
+}
+
+.dark .citation-picker-item {
+  background: #0f172a;
+  border-color: #1e293b;
+  color: #cbd5e1;
+}
+
+.dark .citation-picker-item.selected {
+  background: #1e1b4b;
+  border-color: #4338ca;
+  color: #c7d2fe;
+}
+
+.dark .citation-picker-kind {
+  background: #1e293b;
+  color: #cbd5e1;
+}
+
+.dark .cited-chip {
+  background: #1e1b4b;
+  border-color: #3730a3;
+  color: #c7d2fe;
+}

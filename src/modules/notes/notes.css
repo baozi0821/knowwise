@@ -1,0 +1,2443 @@
+/* M06 拥有:笔记面板(右栏 Dock,OneNote 式三区)样式。
+   只使用 src/app/styles.css 的设计变量(--surface/--line/--accent/--ink/
+   --muted/--faint/--radius-* / --shadow-*),不写死浅色,深色主题随变量自动生效。
+   根元素填满右栏 .dock-body:height:100%; min-height:0; 纵向 flex。 */
+
+/* ============================================================
+   根布局
+   ============================================================ */
+
+.notes-dock.dock-notes {
+  --notes-index-width: 160px;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+  position: relative;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  container-type: inline-size;
+}
+
+.dock-notes .notes-no-document {
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 28px 18px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.dock-notes .notes-no-document svg {
+  color: var(--faint);
+}
+
+/* ============================================================
+   顶部功能栏
+   ============================================================ */
+
+.dock-notes .notes-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 8px 10px 7px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.dock-notes .notes-quick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.dock-notes .notes-quick input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 30px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink);
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  outline: none;
+  transition:
+    border-color 0.12s,
+    box-shadow 0.12s;
+}
+
+.dock-notes .notes-quick input::placeholder {
+  color: var(--faint);
+}
+
+.dock-notes .notes-quick input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
+}
+
+.dock-notes .notes-quick input:disabled {
+  opacity: 0.6;
+}
+
+.dock-notes .notes-quick .btn.small {
+  height: 30px;
+  flex-shrink: 0;
+}
+
+.dock-notes .notes-toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.dock-notes .notes-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 2px;
+  background: var(--bg-deep);
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.dock-notes .notes-chip {
+  padding: 3px 9px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11.5px;
+  line-height: 1.3;
+  cursor: pointer;
+  transition:
+    background 0.1s,
+    color 0.1s;
+}
+
+.dock-notes .notes-chip:hover {
+  color: var(--ink);
+}
+
+.dock-notes .notes-chip.active {
+  background: var(--surface);
+  color: var(--accent);
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+
+.dock-notes .notes-tag-filter {
+  height: 26px;
+  max-width: 112px;
+  padding: 0 6px;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--muted);
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  outline: none;
+  cursor: pointer;
+}
+
+.dock-notes .notes-tag-filter:focus {
+  border-color: var(--accent);
+}
+
+.dock-notes .notes-search {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 96px;
+  min-width: 86px;
+  height: 26px;
+  padding: 0 8px;
+  color: var(--faint);
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  transition: border-color 0.12s;
+}
+
+.dock-notes .notes-search:focus-within {
+  border-color: var(--accent);
+}
+
+.dock-notes .notes-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.dock-notes .notes-search input::placeholder {
+  color: var(--faint);
+}
+
+.dock-notes .notes-more {
+  position: relative;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.dock-notes .notes-menu {
+  position: absolute;
+  top: calc(100% + 5px);
+  right: 0;
+  z-index: 60;
+  min-width: 172px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.dock-notes .notes-menu button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dock-notes .notes-menu button:hover:not(:disabled) {
+  background: var(--bg-deep);
+}
+
+.dock-notes .notes-menu button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.dock-notes .notes-menu-label {
+  padding: 4px 8px 2px;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--faint);
+}
+
+.dock-notes .notes-menu-sep {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--line);
+}
+
+.dock-notes .notes-menu-check-hidden {
+  visibility: hidden;
+}
+
+/* ============================================================
+   错误 / 提示
+   ============================================================ */
+
+.dock-notes .notes-error {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 10px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--danger, #dc2626);
+}
+
+.dock-notes .notes-error-retry {
+  padding: 1px 8px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+.dock-notes .notes-hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--faint);
+}
+
+.dock-notes .notes-hint.center {
+  text-align: center;
+  padding: 8px 0;
+}
+
+/* ============================================================
+   主体:左索引 + 右笔记空间
+   ============================================================ */
+
+.dock-notes .notes-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+/* —— 左索引 —— */
+
+.dock-notes .notes-index {
+  flex: 0 0 var(--notes-index-width);
+  width: var(--notes-index-width);
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  border-right: 1px solid var(--line);
+  background: var(--surface-soft);
+}
+
+.dock-notes .notes-index-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px;
+}
+
+.dock-notes .notes-index-list::-webkit-scrollbar,
+.dock-notes .notes-workspace::-webkit-scrollbar,
+.dock-notes .notes-extra-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dock-notes .notes-index-list::-webkit-scrollbar-thumb,
+.dock-notes .notes-workspace::-webkit-scrollbar-thumb,
+.dock-notes .notes-extra-body::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.dock-notes .notes-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 18px 10px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.dock-notes .notes-empty svg {
+  color: var(--faint);
+}
+
+.dock-notes .notes-empty p {
+  margin: 0;
+}
+
+/* —— 索引条目 —— */
+
+.dock-notes .notes-item {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  padding: 5px 6px 5px 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+  transition:
+    background 0.1s,
+    border-color 0.1s;
+}
+
+.dock-notes .notes-item:hover {
+  background: var(--bg-deep);
+}
+
+.dock-notes .notes-item:focus-visible {
+  border-color: var(--accent);
+}
+
+.dock-notes .notes-item.selected {
+  background: var(--accent-subtle);
+  border-color: var(--line);
+}
+
+.dock-notes .notes-item-bar {
+  flex: 0 0 3px;
+  align-self: stretch;
+  margin-right: 7px;
+  border-radius: 2px;
+  background: var(--muted);
+}
+
+.dock-notes .notes-item-bar.kind-note,
+.dock-notes .notes-item-bar.kind-plain {
+  background: var(--accent);
+}
+
+.dock-notes .notes-item-bar.kind-highlight,
+.dock-notes .notes-item-bar.kind-underline {
+  background: var(--warn, #d9a400);
+}
+
+.dock-notes .notes-item-bar.kind-sticky {
+  background: #e07b39;
+}
+
+.dock-notes .notes-item-bar.kind-ink {
+  background: var(--danger, #d8538f);
+}
+
+.dock-notes .notes-item-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dock-notes .notes-item-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12.5px;
+  font-weight: 550;
+  line-height: 1.4;
+  color: var(--ink);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dock-notes .notes-item.selected .notes-item-title {
+  color: var(--accent);
+}
+
+.dock-notes .notes-item-icon {
+  flex: 0 0 13px;
+  width: 13px;
+  height: 13px;
+  color: var(--faint);
+}
+
+.dock-notes .notes-item-icon.kind-note,
+.dock-notes .notes-item-icon.kind-plain {
+  color: var(--accent);
+}
+
+.dock-notes .notes-item-icon.kind-highlight,
+.dock-notes .notes-item-icon.kind-underline,
+.dock-notes .notes-item-icon.kind-sticky {
+  color: var(--warn, #b45309);
+}
+
+.dock-notes .notes-item-icon.kind-ink {
+  color: var(--danger, #dc2626);
+}
+
+.dock-notes .notes-item-summary {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.dock-notes .notes-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--faint);
+}
+
+.dock-notes .notes-kind-tag {
+  flex-shrink: 0;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--bg-deep);
+  color: var(--muted);
+  font-size: 9.5px;
+  line-height: 1.5;
+}
+
+.dock-notes .notes-tag {
+  flex-shrink: 0;
+  max-width: 80px;
+  padding: 0 5px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 9.5px;
+  line-height: 1.5;
+}
+
+.dock-notes .notes-item-time {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: 2px;
+  color: var(--faint);
+}
+
+.dock-notes .notes-item-loc {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 10px;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.dock-notes .notes-item-loc:hover {
+  text-decoration: underline;
+}
+
+/* ============================================================
+   待澄清 / 书签收纳(索引底部)
+   ============================================================ */
+
+.dock-notes .notes-extras {
+  flex-shrink: 0;
+  max-height: 44%;
+  overflow-y: auto;
+  padding: 4px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-soft);
+}
+
+.dock-notes .notes-extra-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 4px 6px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dock-notes .notes-extra-head:hover {
+  background: var(--bg-deep);
+  color: var(--ink);
+}
+
+.dock-notes .notes-extra-chevron {
+  width: 12px;
+  height: 12px;
+  color: var(--faint);
+  transition: transform 0.12s;
+}
+
+.dock-notes .notes-extra-chevron.open {
+  transform: rotate(90deg);
+}
+
+.dock-notes .notes-extra-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 6px 8px;
+  font-size: 11.5px;
+}
+
+.dock-notes .notes-quick.slim {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.dock-notes .notes-quick.slim input {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  outline: none;
+}
+
+.dock-notes .notes-quick.slim input:focus {
+  border-color: var(--accent);
+}
+
+.dock-notes .notes-extra-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 0;
+  border-bottom: 1px dashed var(--line);
+}
+
+.dock-notes .notes-extra-row:last-child {
+  border-bottom: none;
+}
+
+.dock-notes .notes-clarify-status {
+  flex-shrink: 0;
+  padding: 0 5px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  line-height: 1.6;
+  background: var(--bg-deep);
+  color: var(--muted);
+}
+
+.dock-notes .notes-clarify-status.pending {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.dock-notes .notes-clarify-status.resolved {
+  background: var(--bg-deep);
+  color: var(--muted);
+}
+
+.dock-notes .notes-extra-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--ink);
+}
+
+.dock-notes .notes-extra-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.dock-notes .notes-bookmark-jump {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 11.5px;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dock-notes .notes-bookmark-jump:hover {
+  text-decoration: underline;
+}
+
+/* ============================================================
+   右:笔记空间
+   ============================================================ */
+
+.dock-notes .notes-workspace {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  overflow-y: auto;
+  background: var(--surface);
+}
+
+.dock-notes .notes-workspace-empty {
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 26px 14px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.dock-notes .notes-workspace-empty svg {
+  color: var(--faint);
+}
+
+.dock-notes .notes-workspace-empty p {
+  margin: 0;
+}
+
+.dock-notes .notes-workspace-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.dock-notes .notes-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 8px;
+  border: none;
+  border-radius: 999px;
+  background: var(--bg-deep);
+  color: var(--muted);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.dock-notes .notes-back:hover {
+  color: var(--ink);
+}
+
+.dock-notes .notes-kind-chip {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--accent-subtle);
+  color: var(--accent);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.dock-notes .notes-kind-chip.kind-highlight,
+.dock-notes .notes-kind-chip.kind-underline,
+.dock-notes .notes-kind-chip.kind-sticky {
+  background: var(--bg-deep);
+  color: var(--warn, #b45309);
+}
+
+.dock-notes .notes-kind-chip.kind-ink {
+  background: var(--bg-deep);
+  color: var(--danger, #dc2626);
+}
+
+.dock-notes .notes-loc {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+.dock-notes .notes-loc:hover {
+  text-decoration: underline;
+}
+
+.dock-notes .notes-status {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--bg-deep);
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.dock-notes .notes-status.kind-confirmed {
+  color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.dock-notes .notes-status.kind-needs_clarification {
+  color: var(--warn, #b45309);
+}
+
+.dock-notes .notes-save-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.dock-notes .notes-save-state.saving {
+  color: var(--accent);
+}
+
+.dock-notes .notes-save-state.error {
+  color: var(--danger, #dc2626);
+}
+
+.dock-notes .notes-save-state.unsaved {
+  color: var(--warn, #b45309);
+}
+
+.dock-notes .notes-saving-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: notes-pulse 0.9s ease-in-out infinite;
+}
+
+@keyframes notes-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.dock-notes .notes-workspace-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.dock-notes .notes-confirm {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 9px;
+  border: 1px solid var(--danger, #dc2626);
+  border-radius: var(--radius-sm);
+  background: var(--danger-subtle, transparent);
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.dock-notes .notes-quote {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  width: 100%;
+  margin: 0;
+  padding: 6px 10px;
+  border: none;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dock-notes .notes-quote:hover {
+  background: var(--accent-subtle);
+  color: var(--ink);
+}
+
+/* —— 编辑空间 —— */
+
+.dock-notes .notes-editor-space {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+}
+
+.dock-notes .notes-fields {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.dock-notes .notes-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.dock-notes .notes-field select {
+  height: 26px;
+  padding: 0 6px;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--ink);
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  outline: none;
+  cursor: pointer;
+}
+
+.dock-notes .notes-field select:focus {
+  border-color: var(--accent);
+}
+
+.dock-notes .notes-tag-editor {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 1;
+  min-width: 130px;
+}
+
+.dock-notes .notes-tag-editor input {
+  flex: 1;
+  min-width: 104px;
+  height: 26px;
+  padding: 0 9px;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--ink);
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  outline: none;
+}
+
+.dock-notes .notes-tag-editor input:focus {
+  border-color: var(--accent);
+}
+
+.dock-notes .notes-tag-editor input::placeholder {
+  color: var(--faint);
+}
+
+.dock-notes .notes-tag.editable {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: none;
+  padding: 0 2px 0 7px;
+  background: var(--accent-subtle);
+  border-color: transparent;
+  color: var(--accent);
+  font-size: 10.5px;
+  line-height: 1.7;
+}
+
+.dock-notes .notes-tag.editable button {
+  padding: 0 4px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.dock-notes .notes-tag.editable button:hover {
+  color: var(--danger, #dc2626);
+}
+
+/* —— 阅读态 —— */
+
+.dock-notes .notes-view {
+  flex: 1;
+  min-height: 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.dock-notes .notes-tag-view {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.dock-notes .notes-view-footer {
+  flex-shrink: 0;
+  margin-top: auto;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+  font-size: 10.5px;
+  color: var(--faint);
+}
+
+/* —— toast —— */
+
+.dock-notes .notes-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  z-index: 80;
+  max-width: 92%;
+  padding: 6px 12px;
+  transform: translateX(-50%);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-md);
+  font-size: 11.5px;
+  line-height: 1.5;
+  text-align: center;
+  animation: notes-toast-in 0.16s ease-out;
+}
+
+.dock-notes .notes-toast.error {
+  border-color: var(--danger, #dc2626);
+  color: var(--danger, #dc2626);
+}
+
+@keyframes notes-toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 4px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* ============================================================
+   编辑器(NoteEditor 在面板内的尺寸与观感)
+   ============================================================ */
+
+.dock-notes .note-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.dock-notes .note-editor-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1px;
+  padding: 3px 4px;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+.dock-notes .note-editor-divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 2px 3px;
+  background: var(--line);
+}
+
+.dock-notes .note-editor textarea {
+  width: 100%;
+  min-height: 180px;
+  max-height: 46vh;
+  padding: 10px 12px;
+  resize: vertical;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-top: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  outline: none;
+  box-shadow: none;
+  transition:
+    border-color 0.12s,
+    box-shadow 0.12s;
+}
+
+.dock-notes .note-editor textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
+}
+
+.dock-notes .note-editor-preview {
+  max-height: 220px;
+  padding: 8px 11px;
+  border: 1px solid var(--line);
+  border-top: none;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  background: var(--surface-soft);
+  overflow-y: auto;
+  font-size: 12.5px;
+}
+
+.dock-notes .note-editor-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--warn, #b45309);
+}
+
+.dock-notes .note-editor-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  font-size: 10.5px;
+  color: var(--faint);
+}
+
+.dock-notes .note-count-hint {
+  margin-right: 0;
+  font-size: 10.5px;
+  color: var(--faint);
+}
+
+.dock-notes .note-count-hint.over {
+  color: var(--danger, #dc2626);
+  font-weight: 600;
+}
+
+/* ============================================================
+   窄宽(< 520px):单栏 master → detail
+   ============================================================ */
+
+.dock-notes.notes-narrow .notes-index {
+  flex: 1 1 auto;
+  width: 100%;
+  border-right: none;
+}
+
+.dock-notes.notes-narrow .notes-workspace {
+  flex: 1 1 auto;
+  width: 100%;
+}
+
+.dock-notes.notes-narrow .notes-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.dock-notes.notes-narrow .hidden-in-narrow {
+  display: none !important;
+}
+
+/* 容器查询兜底:即使 ResizeObserver 尚未回调,窄容器也先收紧索引列 */
+@container (max-width: 519px) {
+  .notes-dock.dock-notes:not(.notes-narrow) .notes-index {
+    flex-basis: 140px;
+    width: 140px;
+  }
+}
+
+/* ============================================================
+   Markdown(笔记 / 阅读器共用;CSS 为全局样式,只补需要的部分)
+   ============================================================ */
+
+.md-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.6em 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+}
+
+.markdown-body img,
+.note-md img,
+.docx-body img {
+  max-width: 100%;
+  height: auto;
+}
+
+.markdown-body input[type="checkbox"],
+.note-md input[type="checkbox"],
+.md-task-checkbox {
+  width: 13px;
+  height: 13px;
+  margin: 0 5px 0 0;
+  vertical-align: -2px;
+  accent-color: var(--accent);
+  cursor: default;
+}
+
+.markdown-body ul.contains-task-list,
+.note-md ul.contains-task-list {
+  padding-left: 2px;
+  list-style: none;
+}
+
+.markdown-body li.task-list-item,
+.note-md li.task-list-item {
+  list-style: none;
+  margin: 0.15em 0;
+}
+
+.markdown-body li.task-list-item > input[type="checkbox"]:checked + span,
+.note-md li.task-list-item > input[type="checkbox"]:checked + span {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+/* 阅读器代码块沿用自身 pre 样式 */
+.markdown-body pre code.hljs,
+.docx-body pre code.hljs {
+  background: transparent;
+  padding: 0;
+}
+
+/* Mermaid 图表 / kwink 手绘(阅读器与笔记共用) */
+.md-mermaid {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  margin: 1em 0;
+  overflow-x: auto;
+  text-align: center;
+}
+
+.md-mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.md-mermaid-pending {
+  color: var(--faint);
+  font-size: 12.5px;
+  text-align: center;
+  padding: 16px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-md);
+  margin: 1em 0;
+}
+
+.md-mermaid-fallback {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--danger, #dc2626);
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.md-kwink {
+  display: block;
+  width: 100%;
+  max-width: 560px;
+  background: var(--surface-soft);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  margin: 0.8em 0;
+}
+
+/* ============================================================
+   ��������ͼ + ��ǩ / ���������
+   ============================================================ */
+
+.dock-notes .notes-views {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+  padding: 3px;
+  background: var(--bg-deep);
+  border-radius: var(--radius-md);
+}
+
+.dock-notes .notes-view-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 6px 6px;
+  border: 1px solid transparent;
+  border-radius: calc(var(--radius-md) - 2px);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 140ms var(--ease-out);
+}
+
+.dock-notes .notes-view-tab:hover {
+  color: var(--ink);
+  background: var(--surface-soft);
+}
+
+.dock-notes .notes-view-tab.active {
+  color: var(--accent-hover);
+  background: var(--surface);
+  border-color: var(--line);
+  box-shadow: var(--shadow-sm);
+}
+
+.dock-notes .notes-view-count {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--bg-deep);
+  color: var(--muted);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  line-height: 16px;
+  text-align: center;
+}
+
+.dock-notes .notes-view-tab.active .notes-view-count {
+  background: var(--accent-subtle);
+  color: var(--accent-hover);
+}
+
+.notes-panel-view {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 14px 24px;
+  animation: notes-panel-in 220ms var(--ease-out);
+}
+
+@keyframes notes-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.notes-panel-head h3 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 3px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.notes-panel-head p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.notes-panel-error {
+  margin: 0;
+  padding: 7px 10px;
+  font-size: 12px;
+  color: var(--danger);
+  background: var(--danger-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.notes-panel-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 34px 18px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.notes-panel-empty svg {
+  color: var(--faint);
+}
+
+.notes-panel-empty p {
+  margin: 0;
+}
+
+/* ���� ��ǩ ���� */
+
+.notes-bookmark-add {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  background: var(--surface-soft);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-md);
+}
+
+.notes-bookmark-list,
+.notes-clarify-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.notes-bookmark-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px 11px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  transition: border-color 140ms var(--ease-out), box-shadow 140ms var(--ease-out), transform 140ms var(--ease-out);
+}
+
+.notes-bookmark-card:hover {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+
+.notes-bookmark-pin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  color: var(--accent-hover);
+  background: var(--accent-subtle);
+}
+
+.notes-bookmark-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.notes-bookmark-title {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+  text-align: left;
+  cursor: pointer;
+}
+
+.notes-bookmark-title:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.notes-bookmark-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--faint);
+}
+
+.notes-bookmark-page {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.notes-bookmark-rename {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.notes-bookmark-rename input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  font-size: 12.5px;
+  color: var(--ink);
+  background: var(--surface-soft);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  outline: none;
+}
+
+.notes-bookmark-actions {
+  display: inline-flex;
+  gap: 1px;
+  flex-shrink: 0;
+  opacity: 0.35;
+  transition: opacity 140ms var(--ease-out);
+}
+
+.notes-bookmark-card:hover .notes-bookmark-actions,
+.notes-bookmark-card:focus-within .notes-bookmark-actions {
+  opacity: 1;
+}
+
+/* ���� ������ ���� */
+
+.notes-clarify-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.notes-clarify-composer textarea {
+  width: 100%;
+  min-height: 132px;
+  padding: 7px 9px;
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  outline: none;
+  resize: vertical;
+}
+
+.notes-clarify-composer textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.notes-clarify-composer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.notes-clarify-source {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 6px 8px;
+  font-size: 11.5px;
+  color: var(--muted);
+  background: var(--accent-subtle);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+}
+
+.notes-clarify-source-label {
+  flex-shrink: 0;
+  font-weight: 700;
+  color: var(--accent-hover);
+}
+
+.notes-clarify-source-text {
+  flex: 1;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.notes-clarify-card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  animation: notes-panel-in 200ms var(--ease-out);
+}
+
+.notes-clarify-card.status-resolved {
+  opacity: 0.82;
+  background: var(--surface-soft);
+}
+
+.notes-clarify-card.status-deferred {
+  border-style: dashed;
+}
+
+.notes-clarify-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.notes-clarify-time {
+  font-size: 11px;
+  color: var(--faint);
+}
+
+.notes-clarify-question {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+
+.notes-clarify-quote {
+  margin: 0;
+  padding: 6px 9px;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--muted);
+  text-align: left;
+  background: var(--bg-deep);
+  border: none;
+  border-left: 3px solid var(--line-strong);
+  border-radius: 4px;
+  cursor: pointer;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.notes-clarify-quote:hover {
+  color: var(--ink);
+  border-left-color: var(--accent);
+}
+
+.notes-clarify-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.notes-clarify-remark,
+.notes-clarify-remark-edit textarea {
+  width: 100%;
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--ink);
+  background: var(--surface-soft);
+  border: 1px dashed var(--line-strong);
+  border-radius: 5px;
+}
+
+.notes-clarify-remark {
+  text-align: left;
+  cursor: pointer;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.notes-clarify-remark:hover {
+  border-color: var(--accent);
+}
+
+.notes-clarify-remark-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.notes-clarify-remark-edit textarea {
+  min-height: 52px;
+  resize: vertical;
+  outline: none;
+}
+
+.notes-clarify-remark-edit textarea:focus {
+  border-style: solid;
+  border-color: var(--accent);
+}
+
+.notes-clarify-answer {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.notes-clarify-answer textarea {
+  width: 100%;
+  min-height: 104px;
+  padding: 7px 9px;
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink);
+  background: var(--surface-soft);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  outline: none;
+  resize: vertical;
+}
+
+.notes-clarify-answer-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.notes-quote-block {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.notes-quote-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--faint);
+}
+
+/* խ����:����ͼ��ǩ���ȱ�֤��������,��Ҫʱ����ͼ��/������ */
+.dock-notes .notes-view-tab {
+  white-space: nowrap;
+}
+
+@container (max-width: 390px) {
+  .dock-notes .notes-view-tab {
+    gap: 3px;
+    padding: 5px 4px;
+    font-size: 11.5px;
+  }
+  .dock-notes .notes-view-tab svg {
+    display: none;
+  }
+}
+
+@container (max-width: 300px) {
+  .dock-notes .notes-view-count {
+    display: none;
+  }
+}
+
+/* 批量选择与删除(仅 note 条目) */
+.notes-bulk-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-soft);
+  font-size: 11px;
+}
+
+.notes-bulk-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.notes-bulk-count {
+  color: var(--muted);
+  margin-left: auto;
+}
+
+.notes-bulk-confirm {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.dock-notes .notes-select {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  padding-right: 4px;
+  cursor: pointer;
+}
+
+.dock-notes .notes-item.has-select {
+  align-items: flex-start;
+}
+
+/* ============================================================
+   输入区尺寸与留白修正
+   - 原来 textarea 只有 54px 高,而下方留了一大片空白:把高度交给
+     输入框本身,面板底部不再留空。
+   - 配色改为简约白:浅灰背景 + 白底输入区,去掉彩色底。
+   ============================================================ */
+
+.dock-notes {
+  --notes-paper: #ffffff;
+  --notes-paper-soft: #f7f8fa;
+  --notes-paper-line: #e6e8ec;
+}
+
+/* 面板底部不留空:内容从上到下占满,多余空间给输入区。
+   注意:notes-body 是左右分栏(索引|详情),不能被改成 column——
+   否则索引与详情上下堆叠,详情被挤出可视区,看起来"什么都不显示"。 */
+.dock-notes .notes-pane {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dock-notes .notes-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+}
+
+.dock-notes:not(.notes-narrow) .notes-index {
+  max-width: 45%;
+}
+
+.dock-notes .note-editor {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.dock-notes .note-editor textarea {
+  flex: 1 1 auto;
+  min-height: 240px;
+  max-height: none;
+  background: var(--notes-paper);
+  border: 1px solid var(--notes-paper-line);
+}
+
+.dock-notes .note-editor-toolbar {
+  background: var(--notes-paper-soft);
+  border-color: var(--notes-paper-line);
+}
+
+.dock-notes .note-editor-preview {
+  background: var(--notes-paper-soft);
+  border-color: var(--notes-paper-line);
+}
+
+/* 澄清:输入框同样吃掉空白,背景改白。 */
+.notes-clarify-composer {
+  background: #ffffff;
+  border-color: #e6e8ec;
+}
+
+.notes-clarify-composer textarea {
+  min-height: 132px;
+  background: #ffffff;
+  border-color: #e6e8ec;
+}
+
+.notes-clarify-answer textarea {
+  min-height: 120px;
+  background: #ffffff;
+  border-color: #e6e8ec;
+}
+
+/* 引用来源条:从彩色底改为浅灰,保留左侧强调线以区分层级。 */
+.notes-clarify-source {
+  background: #f7f8fa;
+  color: #4b5563;
+  border-left-color: #c7ccd6;
+}
+
+/* —— 笔记主从布局:左索引可折叠、可拖拽 ——
+   与会话管理一致:左边是列表管理,右边是编辑区。 */
+
+.dock-notes .notes-index-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 0;
+  flex: 0 0 auto;
+}
+
+.dock-notes .notes-index-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+.dock-notes .notes-index.is-collapsed {
+  flex: 0 0 34px;
+  width: 34px;
+  border-right: 1px solid var(--line);
+}
+
+.dock-notes .notes-index.is-collapsed .notes-bulk-bar,
+.dock-notes .notes-index.is-collapsed .notes-index-list {
+  display: none;
+}
+
+.dock-notes .notes-index-resizer {
+  flex: 0 0 5px;
+  align-self: stretch;
+  height: auto;
+  min-height: 100%;
+  width: 5px;
+  cursor: col-resize;
+  background: transparent;
+  position: relative;
+  z-index: 2;
+  touch-action: none;
+}
+
+.dock-notes .notes-index-resizer::after {
+  content: "";
+  position: absolute;
+  inset: 0 2px;
+  background: var(--line);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.dock-notes .notes-index-resizer:hover::after,
+.dock-notes .notes-index-resizer:active::after {
+  opacity: 1;
+  background: var(--accent);
+}
+
+/* —— 编辑 / 预览 六四开,中间可拖拽 —— */
+.dock-notes .notes-workspace-split {
+  display: grid;
+  grid-template-rows: 6fr 4fr;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.dock-notes .notes-workspace-split > * {
+  min-height: 0;
+}
+
+.notes-workspace-split {
+  display: grid;
+  min-height: 220px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.notes-workspace-single {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.dock-notes .notes-workspace-split > textarea,
+.notes-workspace-split > textarea {
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  resize: none;
+  overflow-y: auto;
+}
+
+.dock-notes .notes-workspace-split > .note-editor-preview,
+.notes-workspace-split > .note-editor-preview {
+  height: 100%;
+  max-height: none;
+  overflow-y: auto;
+}
+
+/* 分隔条:上下拖动,双击回到 6:4。 */
+.notes-split-bar {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: row-resize;
+  touch-action: none;
+  background: transparent;
+}
+
+.notes-split-bar::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 3px;
+  height: 1px;
+  background: var(--line, rgba(120, 120, 120, 0.35));
+}
+
+.notes-split-bar > span {
+  width: 46px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--line, rgba(120, 120, 120, 0.45));
+  transition: background 0.12s;
+}
+
+.notes-split-bar:hover > span,
+.notes-split-bar:focus-visible > span {
+  background: var(--accent);
+}
+
+.notes-split-bar:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+/* —— 知识图:真实节点/边 + 搜索/筛选/布局/缩放/详情 —— */
+.knowledge-graph {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  padding: 8px;
+  gap: 6px;
+  container-type: inline-size;
+  /* 窄 dock 下工具/图例换行会超过高度:允许纵向滚动,保证全屏/缩放等控件可达。 */
+  overflow-y: auto;
+}
+.kg-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.kg-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}
+.kg-search input {
+  width: 120px;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  font-size: 11.5px;
+  outline: none;
+}
+.kg-search-count {
+  font-size: 10.5px;
+  color: var(--faint);
+}
+.kg-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.kg-filter input {
+  margin: 0;
+}
+.kg-filter-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent, #3f83f8);
+  opacity: 0.8;
+}
+.kg-filter.kind-section .kg-filter-dot { background: #8b5cf6; border-radius: 2px; }
+.kg-filter.kind-annotation .kg-filter-dot { background: #f59e0b; }
+.kg-filter.kind-note .kg-filter-dot { background: #10b981; border-radius: 2px; }
+.kg-filter.kind-bookmark .kg-filter-dot { background: #ef4444; border-radius: 1px; transform: rotate(45deg); }
+.kg-filter.kind-citation .kg-filter-dot { background: #64748b; border-radius: 0; clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+.kg-count {
+  margin-left: auto;
+  white-space: nowrap;
+}
+.kg-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.kg-segmented {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.kg-segmented button {
+  border: none;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+.kg-segmented button.active {
+  background: var(--accent-subtle, rgba(63, 131, 248, 0.15));
+  color: var(--accent, #3f83f8);
+  font-weight: 600;
+}
+.kg-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+.kg-icon-btn:hover {
+  color: var(--ink);
+}
+.kg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kg-chip.active {
+  border-color: var(--accent, #3f83f8);
+  color: var(--accent, #3f83f8);
+  background: var(--accent-subtle, rgba(63, 131, 248, 0.12));
+}
+.kg-chip:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.kg-fullscreen-btn {
+  margin-left: 2px;
+}
+.kg-truncated {
+  margin: 0;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: var(--warn-subtle, rgba(217, 119, 6, 0.12));
+  color: var(--warn, #b45309);
+  font-size: 11.5px;
+}
+.kg-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 10.5px;
+  color: var(--faint);
+}
+.kg-legend-edge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.kg-legend-edge::before {
+  content: "";
+  display: inline-block;
+  width: 16px;
+  height: 0;
+  border-top: 1.5px solid var(--line-strong, #c7cbd4);
+}
+.kg-legend-edge.kind-located::before { border-top-style: dashed; }
+.kg-legend-edge.kind-citation::before { border-top-color: #64748b; }
+.kg-legend-edge.kind-related::before { border-top-style: dotted; border-top-color: #10b981; }
+.kg-legend-note {
+  margin-left: auto;
+}
+.kg-legend-near {
+  color: var(--accent, #3f83f8);
+}
+.kg-error {
+  margin: 0;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: var(--danger-subtle, rgba(220, 38, 38, 0.1));
+  color: var(--danger, #dc2626);
+  font-size: 11.5px;
+}
+.kg-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 8px;
+}
+.kg-canvas {
+  flex: 1 1 auto;
+  min-height: 220px;
+  width: 100%;
+  background: var(--surface-soft, #f8f8f6);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: grab;
+  touch-action: none;
+}
+.kg-canvas:active {
+  cursor: grabbing;
+}
+.kg-edge {
+  stroke: var(--line-strong, #c7cbd4);
+  stroke-width: 1;
+  opacity: 0.7;
+}
+.kg-edge.kind-located {
+  stroke-dasharray: 4 3;
+}
+.kg-edge.kind-citation {
+  stroke: #64748b;
+}
+.kg-edge.kind-related {
+  stroke: #10b981;
+  stroke-dasharray: 2 3;
+}
+.kg-edge.dimmed {
+  opacity: 0.16;
+}
+.kg-node rect,
+.kg-node circle,
+.kg-node polygon {
+  fill: var(--surface);
+  stroke: var(--accent, #3f83f8);
+  stroke-width: 1.5;
+  cursor: pointer;
+}
+.kg-node-hit {
+  fill: transparent;
+  stroke: none;
+  pointer-events: all;
+}
+
+.kg-node text {
+  font-size: 9.5px;
+  fill: var(--ink);
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: var(--surface-soft, #f8f8f6);
+  stroke-width: 2.5px;
+  stroke-linejoin: round;
+}
+.kg-node.kind-document rect {
+  fill: var(--accent, #3f83f8);
+  stroke: var(--accent, #3f83f8);
+}
+.kg-node.kind-document text {
+  font-weight: 650;
+}
+.kg-node.kind-section polygon {
+  stroke: #8b5cf6;
+}
+.kg-node.kind-note rect {
+  stroke: #10b981;
+}
+.kg-node.kind-annotation circle {
+  stroke: #f59e0b;
+}
+.kg-node.kind-bookmark polygon {
+  stroke: #ef4444;
+}
+.kg-node.kind-citation polygon {
+  stroke: #64748b;
+}
+.kg-node.active rect,
+.kg-node.active circle,
+.kg-node.active polygon {
+  fill: var(--accent-subtle, rgba(63, 131, 248, 0.15));
+  stroke-width: 2.4;
+}
+.kg-node.reading-near {
+  filter: drop-shadow(0 0 3px rgba(63, 131, 248, 0.75));
+}
+.kg-node.dimmed {
+  opacity: 0.2;
+}
+.kg-node:focus-visible {
+  outline: none;
+}
+.kg-node:focus-visible rect,
+.kg-node:focus-visible circle,
+.kg-node:focus-visible polygon {
+  stroke: var(--accent, #3f83f8);
+  stroke-width: 3;
+}
+.kg-detail {
+  flex: 0 0 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--muted);
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  overflow-y: auto;
+}
+.kg-detail strong {
+  color: var(--ink);
+  word-break: break-word;
+}
+.kg-detail-excerpt {
+  color: var(--ink);
+  background: var(--surface-soft, #f8f8f6);
+  border-left: 2px solid var(--accent, #3f83f8);
+  padding: 4px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.kg-detail-meta {
+  font-size: 10.5px;
+  color: var(--faint);
+}
+.kg-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+.kg-empty {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--muted);
+  padding: 4px 2px;
+}
+.kg-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: var(--bg, #f8f8f6);
+  padding: 14px;
+}
+.kg-fullscreen-close {
+  position: absolute;
+  top: 18px;
+  right: 20px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+@container (max-width: 520px) {
+  .kg-main {
+    flex-direction: column;
+  }
+  .kg-detail {
+    flex: 0 0 auto;
+    max-height: 130px;
+  }
+  .kg-canvas {
+    min-height: 240px;
+  }
+  .kg-search input {
+    width: 92px;
+  }
+}
+
+/* —— 书签备注 —— */
+.notes-bookmark-note {
+  margin-top: 2px;
+  padding: 2px 0;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.5;
+  text-align: left;
+  cursor: text;
+  white-space: pre-wrap;
+}
+.notes-bookmark-note:hover {
+  color: var(--ink);
+}
+.notes-bookmark-note-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+.notes-bookmark-note-edit textarea {
+  width: 100%;
+  resize: vertical;
+  font-size: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 6px;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+/* 笔记修订冲突:保留 / 另存副本 / 放弃,不能只给一个笼统的“重试”。 */
+.notes-conflict {
+  margin: 6px 0;
+}
+.notes-conflict-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}

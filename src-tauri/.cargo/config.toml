@@ -1,0 +1,12 @@
+# M00:cargo 环境基线(已验证决策,见 README「工具链」一节)。
+#
+# 1. TS_RS_EXPORT_DIR 相对本文件所在 crate 根(src-tauri)解析为仓库根,
+#    ts-rs 导出统一写入 src/shared/generated(不手改)。
+# 2. windows-gnu 使用 rust-lld 自包含链接:本机 mingw ld 在 proc-macro DLL
+#    并行链接时间歇性失败(ld exit 5),rust-lld 稳定且随工具链分发。
+[env]
+TS_RS_EXPORT_DIR = { value = "..", relative = true }
+
+[target.x86_64-pc-windows-gnu]
+linker = "rust-lld"
+rustflags = ["-C", "link-self-contained=y"]

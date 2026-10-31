@@ -1,0 +1,417 @@
+/* 2D 页角 OCR 徽标:叠加在页框右上角;按钮保持键盘可达。 */
+.pdf-ocr-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: calc(100% - 16px);
+  padding: 3px 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.3;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 8%);
+  pointer-events: none;
+}
+
+.pdf-ocr-label {
+  font-weight: 650;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.pdf-ocr-confidence {
+  font-variant-numeric: tabular-nums;
+  color: var(--faint);
+}
+
+.pdf-ocr-hint {
+  color: var(--warn);
+  white-space: nowrap;
+}
+
+.pdf-ocr-badge.status-low_confidence {
+  border-color: color-mix(in srgb, var(--warn) 45%, var(--line));
+  background: color-mix(in srgb, var(--warn) 8%, var(--surface));
+}
+
+.pdf-ocr-badge.status-failed {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+  background: color-mix(in srgb, var(--danger) 7%, var(--surface));
+}
+
+.pdf-ocr-badge.status-failed .pdf-ocr-label {
+  color: var(--danger);
+}
+
+.pdf-ocr-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pdf-ocr-pulse 1.2s ease-in-out infinite;
+}
+
+.pdf-ocr-retry {
+  pointer-events: auto;
+  padding: 1px 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--accent);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.pdf-ocr-retry:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.pdf-ocr-retry:focus-visible {
+  outline: 2px solid var(--focus, var(--accent));
+  outline-offset: 1px;
+}
+
+.pdf-ocr-retry:disabled {
+  color: var(--faint);
+  cursor: progress;
+}
+
+@keyframes pdf-ocr-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pdf-ocr-dot { animation: none; }
+}
+
+.reader-ocr-error {
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--danger) 40%, var(--line));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--danger) 6%, var(--surface));
+  color: var(--danger);
+  font-size: 12px;
+}
+
+/* OCR 纠错:徽标内的编辑入口 + 编辑对话框。 */
+.pdf-ocr-edit {
+  /* 徽标容器是 pointer-events:none(让页面可取词);按钮必须显式恢复,
+     否则“编辑识别文本”鼠标点不到,点击会落到下层文本层。 */
+  pointer-events: auto;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border: 1px solid var(--line-strong, #d6d9e0);
+  border-radius: 5px;
+  background: var(--surface, #fff);
+  color: var(--ink, #1c1c1a);
+  font-size: 10.5px;
+  cursor: pointer;
+}
+.pdf-ocr-edit:hover {
+  border-color: var(--accent, #5b5bd6);
+  color: var(--accent, #5b5bd6);
+}
+.ocr-editor-dialog {
+  width: min(680px, calc(100vw - 32px));
+  max-height: 82vh;
+  overflow-y: auto;
+}
+.ocr-editor-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0 12px;
+}
+.ocr-editor-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--muted, #667085);
+}
+.ocr-editor-block textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 6px 8px;
+  border: 1px solid var(--line-strong, #d6d9e0);
+  border-radius: 6px;
+  background: var(--surface, #fff);
+  color: var(--ink, #1c1c1a);
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+/* —— 指定页 OCR —— */
+.pdf-ocr-recognize {
+  pointer-events: auto;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border: 1px solid var(--line-strong, #d6d9e0);
+  border-radius: 5px;
+  background: var(--surface, #fff);
+  color: var(--accent, #5b5bd6);
+  font-size: 10.5px;
+  cursor: pointer;
+}
+.pdf-ocr-recognize:hover {
+  border-color: var(--accent, #5b5bd6);
+}
+.pdf-ocr-recognize:focus-visible {
+  outline: 2px solid var(--focus, var(--accent, #5b5bd6));
+  outline-offset: 1px;
+}
+.ocr-recognize-dialog {
+  width: min(620px, calc(100vw - 32px));
+  max-height: 86vh;
+  overflow-y: auto;
+}
+.ocr-recognize-spec-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 8px 0 4px;
+}
+.ocr-recognize-spec {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--muted, #667085);
+  flex: 1 1 200px;
+}
+.ocr-recognize-spec input {
+  height: 30px;
+  padding: 4px 8px;
+  border: 1px solid var(--line-strong, #d6d9e0);
+  border-radius: 6px;
+  background: var(--surface, #fff);
+  color: var(--ink, #1c1c1a);
+  font-size: 13px;
+}
+.ocr-recognize-quick {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ocr-recognize-hint {
+  margin: 2px 0 8px;
+  font-size: 11.5px;
+  color: var(--muted, #667085);
+}
+.ocr-recognize-invalid {
+  color: var(--danger, #d92d20);
+  font-weight: 600;
+}
+.ocr-recognize-warning {
+  margin: 6px 0;
+  padding: 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--warn, #b54708) 45%, var(--line, #e4e4e0));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--warn, #b54708) 8%, var(--surface, #fff));
+  color: var(--warn, #b54708);
+  font-size: 12px;
+}
+.ocr-recognize-progress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 6px 0;
+  font-size: 12px;
+  color: var(--ink, #1c1c1a);
+}
+.ocr-recognize-summary {
+  margin: 6px 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent, #5b5bd6) 8%, var(--surface, #fff));
+  color: var(--ink, #1c1c1a);
+  font-size: 12px;
+}
+
+/* —— OCR 编辑器增强 —— */
+.ocr-editor-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ocr-editor-dirty {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--warn, #b54708) 12%, var(--surface, #fff));
+  color: var(--warn, #b54708);
+  font-size: 10.5px;
+  font-weight: 650;
+}
+.ocr-editor-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 4px 0 8px;
+  font-size: 11.5px;
+  color: var(--muted, #667085);
+}
+.ocr-editor-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ocr-editor-block-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.ocr-editor-add-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.ocr-editor-shortcut {
+  font-size: 10.5px;
+  color: var(--faint, #98a2b3);
+}
+.ocr-editor-notice {
+  margin: 6px 0;
+  font-size: 12px;
+  color: var(--muted, #667085);
+}
+.ocr-editor-dialog .kw-confirm-actions {
+  flex-wrap: wrap;
+}
+
+/* —— 全文 OCR 进度/暂停面板(阅读区底部) —— */
+.ocr-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 3px 2px 0;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.ocr-progress-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ocr-progress-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.ocr-progress-summary {
+  font-variant-numeric: tabular-nums;
+}
+
+.ocr-progress-paused {
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--warn, #b45309);
+  color: var(--warn, #b45309);
+  background: color-mix(in srgb, var(--warn, #b45309) 10%, transparent);
+  font-size: 10.5px;
+}
+
+.ocr-progress-head .btn {
+  margin-left: auto;
+}
+
+.ocr-progress-notice {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.ocr-progress-notice.error {
+  color: var(--danger, #dc2626);
+}
+
+.ocr-progress-notice.warn {
+  color: var(--warn, #b45309);
+}
+
+.ocr-progress-pages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 124px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.ocr-progress-empty {
+  margin: 4px;
+}
+
+.ocr-page-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 30px;
+  justify-content: center;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.ocr-page-chip:hover {
+  border-color: var(--accent);
+}
+
+.ocr-page-chip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+.ocr-page-chip.status-pending .ocr-page-chip-dot {
+  background: var(--faint);
+}
+.ocr-page-chip.status-rendering .ocr-page-chip-dot,
+.ocr-page-chip.status-ocr_running .ocr-page-chip-dot {
+  background: var(--accent);
+  animation: pdf-ocr-pulse 1.2s ease-in-out infinite;
+}
+.ocr-page-chip.status-completed .ocr-page-chip-dot {
+  background: var(--success, #16a34a);
+}
+.ocr-page-chip.status-low_confidence .ocr-page-chip-dot {
+  background: var(--warn, #b45309);
+}
+.ocr-page-chip.status-failed .ocr-page-chip-dot {
+  background: var(--danger, #dc2626);
+}
+.ocr-page-chip.status-failed {
+  border-color: color-mix(in srgb, var(--danger, #dc2626) 40%, var(--line));
+}

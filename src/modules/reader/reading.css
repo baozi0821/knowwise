@@ -1,0 +1,852 @@
+/* 阅读体验(reader-polish):MD/DOCX 阅读偏好、位置恢复高亮与「Aa」弹层。
+ * 不改 styles.css;这里只以更高特异性覆盖正文容器的字号/行距/版心。
+ * 偏好经内联 CSS 变量下发(--kw-reader-*),默认值保持既有观感。 */
+
+/* 正文视图作为提示/弹层的定位上下文(.reader-toast 为 absolute)。 */
+.rich-text-view {
+  position: relative;
+}
+
+/* —— 阅读偏好:字号 / 行距 / 版心宽度 —— */
+
+.reader-body-wrap .markdown-body,
+.reader-body-wrap .docx-body {
+  font-size: var(--kw-reader-font-size, 14.5px);
+  line-height: var(--kw-reader-line-height, 1.8);
+  max-width: var(--kw-reader-measure, 46rem);
+}
+
+/* 标题跟随字号档位等比缩放(基准:1.65rem / 1.35rem / 1.15rem @ 14.5px)。 */
+.reader-body-wrap .markdown-body h1,
+.reader-body-wrap .docx-body h1 {
+  font-size: calc(var(--kw-reader-font-size, 14.5px) * 1.82);
+}
+.reader-body-wrap .markdown-body h2,
+.reader-body-wrap .docx-body h2 {
+  font-size: calc(var(--kw-reader-font-size, 14.5px) * 1.49);
+}
+.reader-body-wrap .markdown-body h3,
+.reader-body-wrap .docx-body h3 {
+  font-size: calc(var(--kw-reader-font-size, 14.5px) * 1.27);
+}
+
+/* —— 位置恢复:滚到上次阅读处后短暂高亮,提示“从这里继续” —— */
+
+.reader-restore-flash {
+  animation: kw-reader-restore-flash 1.4s var(--ease-out, ease-out);
+  border-radius: 6px;
+}
+
+@keyframes kw-reader-restore-flash {
+  0% {
+    background-color: rgba(242, 183, 5, 0.26);
+  }
+  70% {
+    background-color: rgba(242, 183, 5, 0.12);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+/* —— ReaderRegion 阅读偏好入口(.reader-prefs-*) —— */
+
+/* 简报/偏好并入阅读工具栏:控制组在末端,不再各占一整行。 */
+.reader-toolbar-extras {
+  margin-left: auto;
+  gap: 6px;
+  position: relative;
+}
+
+.reader-toolbar-note {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.reader-brief-format {
+  height: 24px;
+  padding: 0 4px;
+  font-size: 11.5px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.reader-prefs-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.reader-prefs-bar {
+  position: relative;
+  z-index: 6;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin: -2px 0;
+}
+
+/* 双页阅读模式 */
+.pdf-scroll.two-page-mode {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  flex-direction: row !important;
+  justify-content: center !important;
+  align-items: flex-start !important;
+  gap: 16px !important;
+  padding: 16px 8px !important;
+}
+
+.two-page-mode .pdf-page {
+  margin: 0 !important;
+  display: inline-block !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12) !important;
+}
+
+.two-page-mode .pdf-page-placeholder {
+  display: inline-block !important;
+}
+
+.reader-prefs-trigger {
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+.reader-prefs-trigger span {
+  line-height: 1;
+}
+
+.reader-prefs-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 232px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md, 10px);
+  box-shadow: var(--shadow-md);
+  z-index: 20;
+}
+
+.reader-prefs-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reader-prefs-label {
+  width: 28px;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.reader-prefs-option {
+  flex: 1;
+  padding: 4px 6px;
+  font-size: 12px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm, 6px);
+  cursor: pointer;
+  transition: background var(--dur-fast, 120ms) var(--ease-out, ease-out);
+}
+.reader-prefs-option:hover {
+  background: var(--accent-subtle);
+  color: var(--ink);
+}
+.reader-prefs-option.active {
+  background: var(--accent-subtle);
+  border-color: var(--line-strong);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.reader-prefs-reset {
+  align-self: flex-end;
+  padding: 2px 4px;
+  font-size: 12px;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+.reader-prefs-reset:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+/* 窄窗口下正文内边距收紧,避免字号档位把正文挤成窄条。 */
+@media (max-width: 980px) {
+  .reader-body-wrap .markdown-body,
+  .reader-body-wrap .docx-body {
+    padding-left: 28px;
+    padding-right: 28px;
+  }
+}
+
+/* —— 笔迹撤销/套索/形状/图层与统一删除确认 —— */
+
+.layer-menu-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.layer-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 168px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line-strong, #d6d9e0);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+  z-index: 40;
+}
+.layer-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  font-size: 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.layer-menu-item:hover {
+  background: var(--accent-subtle, rgba(63, 131, 248, 0.08));
+}
+
+.lasso-overlay,
+.shape-preview {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+.pdf-ink-canvas.tool-lasso {
+  cursor: crosshair;
+}
+.rich-ink-canvas.tool-lasso {
+  cursor: crosshair;
+}
+
+.lasso-box {
+  position: absolute;
+  border: 1.5px dashed #3f83f8;
+  background: rgba(63, 131, 248, 0.06);
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 5;
+}
+.lasso-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line-strong, #d6d9e0);
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
+  z-index: 30;
+}
+.lasso-hint {
+  font-size: 11px;
+  color: var(--muted, #667085);
+  white-space: nowrap;
+}
+
+.rt-lasso-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 35;
+}
+
+.pdf-ink.lasso-selected,
+.rich-ink.lasso-selected {
+  filter: drop-shadow(0 0 3px rgba(63, 131, 248, 0.7));
+}
+
+.kw-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.32);
+  z-index: var(--z-modal, 400);
+}
+.kw-confirm-dialog {
+  width: min(420px, calc(100vw - 32px));
+  padding: 16px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line-strong, #d6d9e0);
+  border-radius: 12px;
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.24);
+}
+.kw-confirm-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+.kw-confirm-message {
+  margin: 10px 0 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted, #4b5563);
+}
+.kw-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* —— PDF 阅读:缩略图、标注管理、视图模式、打印与夜间扫描页 —— */
+
+.pdf-viewer {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+.pdf-view-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.pdf-view-body > .pdf-scroll {
+  flex: 1;
+  min-width: 0;
+}
+
+.pdf-thumb-rail {
+  width: 168px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--line);
+  background: var(--surface-soft, #f6f5f2);
+}
+.pdf-thumb-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.pdf-thumb-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pdf-thumb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 4px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.pdf-thumb.active {
+  border-color: var(--accent, #3f83f8);
+  background: var(--accent-subtle, rgba(63, 131, 248, 0.08));
+}
+.pdf-thumb-canvas {
+  width: 132px;
+  max-height: 190px;
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+}
+.pdf-thumb-no {
+  font-size: 11px;
+  color: var(--muted);
+}
+.pdf-thumb-failed {
+  padding: 24px 8px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.pdf-manager {
+  position: absolute;
+  top: 52px;
+  right: 12px;
+  bottom: 12px;
+  width: min(360px, calc(100% - 24px));
+  display: flex;
+  flex-direction: column;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line-strong, #d6d9e0);
+  border-radius: 10px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.22);
+  z-index: 40;
+}
+.pdf-manager-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.pdf-manager-total {
+  color: var(--muted);
+  font-size: 11px;
+  margin-right: auto;
+}
+.pdf-manager-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+}
+.pdf-manager-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.pdf-manager-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  display: inline-block;
+}
+.pdf-manager-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 12px;
+}
+.pdf-manager-page h4 {
+  display: flex;
+  justify-content: space-between;
+  margin: 8px 0 4px;
+  font-size: 12px;
+}
+.pdf-manager-page h4 span {
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 11px;
+}
+.pdf-manager-page ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.pdf-manager-page li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 12px;
+}
+.pdf-manager-kind {
+  min-width: 40px;
+}
+.pdf-manager-color {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--muted);
+  margin-right: auto;
+}
+.pdf-manager-empty {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  padding: 24px 0;
+}
+.pdf-manager-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.reader-view-mode select {
+  height: 28px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  padding: 0 4px;
+}
+
+/* 双页:封面单独一页,其余两页一行。 */
+.pdf-scroll.two-page-mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  justify-content: center;
+  gap: 18px;
+  padding: 16px 10px;
+}
+.two-page-mode .pdf-page,
+.two-page-mode .pdf-page-placeholder {
+  flex: 0 0 calc(50% - 9px);
+  max-width: calc(50% - 9px);
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.two-page-mode .pdf-page[data-page="1"] {
+  flex-basis: 100%;
+  max-width: 100%;
+}
+
+/* 夜间:仅对无文本层的扫描页降亮(文字层不受影响)。 */
+.reader-theme-night .pdf-page.scan-page .pdf-canvas {
+  filter: brightness(0.72) contrast(0.95);
+}
+
+@media print {
+  /* 打印只输出文档页:壳层/顶栏/侧栏/右栏/状态栏/工具栏都不能占位,
+     且必须解除 100vh + overflow:hidden 的裁剪,否则只打印第一屏。 */
+  html,
+  body,
+  #root,
+  .app-shell,
+  .workspace-body,
+  .main-region,
+  .reader-region,
+  .reader-mount,
+  .pdf-viewer,
+  .pdf-view-body,
+  .pdf-scroll {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    display: block !important;
+    position: static !important;
+  }
+  .top-bar,
+  .tab-strip,
+  .doc-sidebar,
+  .sidebar-collapsed-rail,
+  .dock-panel,
+  .dock-collapsed-rail,
+  .status-bar,
+  .workspace-toast,
+  .module-degraded,
+  .skip-link,
+  .note-links-layer,
+  .reader-toolbar,
+  .reader-region [role="status"][data-level],
+  .doc-file-notice,
+  .reader-toast,
+  .selection-popover,
+  .pdf-manager,
+  .pdf-thumb-rail,
+  .pdf-page-label,
+  .pdf-ocr-badge,
+  .kw-confirm-overlay,
+  .textbox-editor {
+    display: none !important;
+  }
+  .pdf-page {
+    break-after: page;
+    box-shadow: none !important;
+  }
+  .pdf-page:last-child {
+    break-after: auto;
+  }
+  .pdf-viewer,
+  .pdf-scroll {
+    background: #fff !important;
+  }
+  .pdf-page-frame {
+    box-shadow: none !important;
+  }
+  /* 标注是高亮底色/下划线/笔迹,打印时必须保留颜色。 */
+  .pdf-mark,
+  .textbox-bubble,
+  .pdf-ink,
+  .pdf-sticky {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
+
+/* —— 笔记 ↔ 原文页边标记(不参与排版) —— */
+.reader-body-wrap {
+  position: relative;
+}
+.note-links-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+}
+.note-link-marker {
+  position: absolute;
+  right: 2px;
+  transform: translateY(-2px);
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong, #d6d9e0);
+  background: var(--surface, #fff);
+  color: var(--accent, #3f83f8);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.18);
+  pointer-events: auto;
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+.note-link-marker:hover,
+.note-link-marker:focus-visible,
+.note-link-marker.hover {
+  opacity: 1;
+  transform: translateY(-2px) scale(1.12);
+}
+
+/* —— 大纲当前章节高亮 —— */
+.outline-item.current {
+  background: var(--accent-subtle, rgba(63, 131, 248, 0.12));
+  color: var(--accent, #2563eb);
+  font-weight: 650;
+  border-left: 2px solid var(--accent, #2563eb);
+}
+
+/* —— 双文档对照:两个阅读窗格各自滚动、各自保存位置;中缝可拖动 —— */
+.reader-compare {
+  display: grid;
+  /* 中缝 12px;左右按 --compare-ratio(uiStore 持久化)分配剩余宽度。 */
+  grid-template-columns:
+    minmax(0, calc(var(--compare-ratio, 0.5) * (100% - 12px)))
+    12px
+    minmax(0, calc((1 - var(--compare-ratio, 0.5)) * (100% - 12px)));
+  column-gap: 0;
+  min-height: 0;
+  height: 100%;
+}
+.compare-splitter {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: col-resize;
+  touch-action: none;
+  border-radius: 6px;
+  outline-offset: 2px;
+}
+.compare-splitter-grip {
+  width: 3px;
+  height: 46px;
+  border-radius: 999px;
+  background: var(--line-strong);
+  transition: background 120ms ease, height 120ms ease;
+}
+.compare-splitter:hover .compare-splitter-grip,
+.compare-splitter:focus-visible .compare-splitter-grip {
+  background: var(--accent);
+  height: 72px;
+}
+.compare-splitter:focus-visible {
+  outline: 2px solid var(--accent);
+}
+.reader-compare-pane {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+}
+.reader-compare-pane > .reader-region {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.reader-compare-exit {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  z-index: 20;
+  padding: 3px 8px;
+  font-size: 11.5px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+.reader-compare-exit:hover {
+  color: var(--ink);
+}
+@container (max-width: 520px) {
+  .reader-compare {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .compare-splitter {
+    display: none;
+  }
+}
+
+/* —— 阅读简报导出(原文引用 + 问答 + 标注) —— */
+.reader-brief-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-end;
+  font-size: 11.5px;
+  color: var(--muted);
+  min-height: 22px;
+}
+.reader-brief-bar select {
+  height: 24px;
+  font-size: 11.5px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+}
+.reader-brief-notice {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+}
+
+/* 未落库笔迹:乐观显示,成功后由服务端数据替换。 */
+.pdf-ink.pending-ink {
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+/* 文档文件状态:缺失重连 / 变化确认(入口必须可见,不能只显示一个“!”)。 */
+.doc-file-notice {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--line));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--warn) 6%, var(--surface));
+  font-size: 12px;
+  color: var(--ink);
+}
+.doc-file-notice-text {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.doc-file-notice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.doc-file-candidate {
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--bg-deep);
+  border: 1px solid var(--line);
+  font-size: 11px;
+}
+.doc-file-notice-message {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.doc-file-notice-message.error {
+  color: var(--danger);
+}
+
+/* 本地翻译不可用:明确显示缺失并说明会回退远程,不静默失败。 */
+.selection-local-translation {
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--line));
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+  color: var(--warn);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+/* 阅读工具栏紧凑化:右栏展开时正文只有 ~640px,固定 34px 按钮 + 14px 间距
+   会把工具栏堆成 4–5 行(实测 261px)。用容器查询按“正文可用宽度”收紧,
+   不依赖窗口宽度(1280 窗口 + 右栏时同样生效)。 */
+.reader-region {
+  container-type: inline-size;
+}
+@container (max-width: 900px) {
+  .reader-toolbar {
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 10px;
+  }
+  .reader-toolbar-group {
+    gap: 2px;
+  }
+  .reader-toolbar .icon-btn,
+  .reader-toolbar .top-icon-btn {
+    width: 28px;
+    height: 28px;
+  }
+  .reader-toolbar .reader-brief-format,
+  .reader-toolbar .tool-size-slot {
+    display: none;
+  }
+  .reader-toolbar .reader-page-indicator,
+  .reader-toolbar .reader-zoom-label {
+    font-size: 11.5px;
+  }
+}
+
+/* 工具参数槽固定宽度:切换画笔/橡皮不会改变工具栏行数,正文不会跳动。 */
+.tool-size-slot {
+  display: inline-flex;
+  align-items: center;
+  width: 78px;
+  min-height: 28px;
+  flex: 0 0 auto;
+}

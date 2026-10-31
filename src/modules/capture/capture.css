@@ -1,0 +1,151 @@
+/* capture 拥有:屏幕框选层样式。
+   设计系统变量来自 src/app/styles.css(tailwind @layer 之外的原生变量)。
+   z-index 高于设置对话框(200)、全局浮层(1000)等既有层级。 */
+
+.screen-clip-root {
+  position: fixed;
+  inset: 0;
+  z-index: 2400;
+  cursor: crosshair;
+  user-select: none;
+  touch-action: none;
+  overflow: hidden;
+  outline: none;
+  background-color: #0b0b0a;
+  /* 截图物理像素按视口 100% 铺满;换算比例见 crop.ts captureScale()。 */
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  font-family: var(--font-ui);
+  -webkit-user-select: none;
+}
+
+/* 尚未出现选区时的整屏深色遮罩(出现选区后由选区 box-shadow 挖洞)。 */
+.screen-clip-shade {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 10, 9, 0.45);
+  pointer-events: none;
+}
+
+.screen-clip-selection {
+  position: absolute;
+  border: 1.5px solid rgba(255, 255, 255, 0.95);
+  border-radius: 2px;
+  /* 挖洞:选区外整屏压暗,保持截图内容可读 */
+  box-shadow: 0 0 0 100vmax rgba(10, 10, 9, 0.45), inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+.screen-clip-readout {
+  position: absolute;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: rgba(28, 28, 26, 0.86);
+  color: #ffffff;
+  font-size: 12px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+}
+
+.screen-clip-hairline {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.45);
+  pointer-events: none;
+}
+
+.screen-clip-hairline-v {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+
+.screen-clip-hairline-h {
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+
+.screen-clip-hint {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(28, 28, 26, 0.78);
+  color: #ffffff;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: var(--shadow-md);
+}
+
+.screen-clip-toolbar {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  cursor: default;
+  pointer-events: auto;
+}
+
+.screen-clip-toolbar-size {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  min-width: 62px;
+  text-align: right;
+}
+
+.screen-clip-btn {
+  appearance: none;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+
+.screen-clip-btn:hover {
+  background: var(--surface-soft);
+  border-color: var(--line-strong);
+}
+
+.screen-clip-btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.screen-clip-btn:disabled {
+  cursor: progress;
+  opacity: 0.65;
+}
+
+.screen-clip-btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.screen-clip-btn-primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}

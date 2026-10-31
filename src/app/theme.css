@@ -1,0 +1,432 @@
+/* 深色主题覆盖层:唯一入口是 <html data-theme="dark">。
+ *
+ * 设计变量在 :root 里集中定义;styles.css 与各模块 CSS 大多已使用变量,
+ * 这里只补三类:
+ *   1) 深色变量值;
+ *   2) 少量历史硬编码浅色面(白卡片/白工具条/深色文字);
+ *   3) 阅读纸面(PDF 页、Markdown 正文)的深色呈现。
+ * 选择器统一带 [data-theme="dark"] 前缀提高特异性,避免被模块 CSS
+ * 的加载顺序覆盖。
+ */
+
+[data-theme="dark"] {
+  --bg: #151517;
+  --bg-deep: #1c1c1f;
+  --surface: #202024;
+  --surface-soft: #1a1a1d;
+  --ink: #ececea;
+  --muted: #a3a39d;
+  --faint: #75756f;
+  --line: #2c2c31;
+  --line-strong: #3b3b42;
+  --accent: #8f8ff2;
+  --accent-hover: #a5a5f7;
+  --accent-subtle: #26264a;
+  --danger: #f87171;
+  --danger-subtle: #3a1d1d;
+  --warn: #eab308;
+  --ok: #34d399;
+  --focus: #8f8ff2;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 24px 48px -12px rgba(0, 0, 0, 0.7);
+  --paper-shadow: 0 1px 2px rgba(0, 0, 0, 0.55), 0 10px 30px -14px rgba(0, 0, 0, 0.7);
+}
+
+[data-theme="dark"] body {
+  background: var(--bg);
+}
+
+/* —— 壳层与工具条 —— */
+
+[data-theme="dark"] .top-bar {
+  background: rgba(21, 21, 23, 0.86);
+}
+
+[data-theme="dark"] .notify-dot {
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+[data-theme="dark"] .doc-tab.active,
+[data-theme="dark"] .tab-strip {
+  box-shadow: none;
+}
+
+[data-theme="dark"] .doc-tab-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .module-degraded {
+  background: #2a2415;
+  border-color: #4a3f1c;
+}
+
+/* —— 通用控件 —— */
+
+[data-theme="dark"] .btn {
+  background: var(--surface);
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+[data-theme="dark"] .btn:hover {
+  background: var(--bg-deep);
+  border-color: #4a4a52;
+}
+[data-theme="dark"] .btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #14141a;
+}
+[data-theme="dark"] .btn.primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+[data-theme="dark"] .btn.ghost:hover,
+[data-theme="dark"] .icon-btn:hover,
+[data-theme="dark"] .top-icon-btn:hover,
+[data-theme="dark"] .tab-new:hover {
+  background: var(--bg-deep);
+}
+
+[data-theme="dark"] input,
+[data-theme="dark"] textarea,
+[data-theme="dark"] select {
+  color: var(--ink);
+}
+
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder {
+  color: var(--faint);
+}
+
+[data-theme="dark"] .sidebar-search,
+[data-theme="dark"] .agent-input-container,
+[data-theme="dark"] .reader-toolbar,
+[data-theme="dark"] .tab-strip {
+  background: var(--surface);
+  border-color: var(--line-strong);
+}
+
+[data-theme="dark"] .sidebar-search input {
+  color: var(--ink);
+}
+
+[data-theme="dark"] .reader-toolbar {
+  box-shadow: var(--shadow-sm);
+}
+
+[data-theme="dark"] .reader-page-jump:focus,
+[data-theme="dark"] .sidebar-search:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(143, 143, 242, 0.16);
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: #3a3a41;
+  border: 2.5px solid transparent;
+  background-clip: content-box;
+}
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: #4c4c55;
+  background-clip: content-box;
+  border: 2.5px solid transparent;
+}
+
+/* —— 阅读纸面 —— */
+
+[data-theme="dark"] .pdf-scroll {
+  background: var(--bg);
+}
+[data-theme="dark"] .pdf-page-frame {
+  background: #1e1e22;
+  box-shadow: var(--paper-shadow);
+}
+/* PDF 页是 pdf.js 光栅画布(白纸已烘进像素):深色主题下整体反相,
+   文字层保持透明;彩色插图会偏色,需要原色时切回浅色主题即可。 */
+[data-theme="dark"] .pdf-canvas {
+  filter: invert(0.92) hue-rotate(180deg) brightness(0.98);
+}
+[data-theme="dark"] .pdf-mark {
+  mix-blend-mode: screen;
+}
+[data-theme="dark"] .pdf-page-label {
+  color: var(--faint);
+}
+[data-theme="dark"] .pdf-page-placeholder {
+  background: linear-gradient(100deg, #232327 40%, #2c2c31 50%, #232327 60%);
+  background-size: 800px 100%;
+  border-color: var(--line);
+}
+[data-theme="dark"] .pdf-line {
+  color: #d8d8d4;
+}
+[data-theme="dark"] .reader-body,
+[data-theme="dark"] .reader-body-wrap {
+  background: transparent;
+}
+[data-theme="dark"] .markdown-body,
+[data-theme="dark"] .docx-body,
+[data-theme="dark"] .rich-text-view {
+  color: var(--ink);
+}
+[data-theme="dark"] .markdown-body table,
+[data-theme="dark"] .docx-body table,
+[data-theme="dark"] .rich-text-view table {
+  border-color: var(--line-strong);
+}
+[data-theme="dark"] .markdown-body th,
+[data-theme="dark"] .docx-body th,
+[data-theme="dark"] .markdown-body td,
+[data-theme="dark"] .docx-body td {
+  border-color: var(--line-strong);
+}
+[data-theme="dark"] .markdown-body th,
+[data-theme="dark"] .docx-body th {
+  background: var(--bg-deep);
+}
+[data-theme="dark"] .markdown-body code,
+[data-theme="dark"] .docx-body code {
+  background: var(--bg-deep);
+  color: #e6c07b;
+}
+[data-theme="dark"] .markdown-body pre,
+[data-theme="dark"] .docx-body pre {
+  background: #101013;
+  border-color: var(--line);
+}
+[data-theme="dark"] .markdown-body a,
+[data-theme="dark"] .docx-body a {
+  color: var(--accent);
+}
+
+/* —— 右栏:Agent / 笔记共用面 —— */
+
+[data-theme="dark"] .agent-panel,
+[data-theme="dark"] .dock-panel {
+  background: var(--surface-soft);
+}
+
+[data-theme="dark"] .qa-message {
+  background: var(--surface);
+  border-color: var(--line);
+  box-shadow: none;
+}
+[data-theme="dark"] .qa-message.user {
+  background: var(--bg-deep);
+  border-left-color: var(--accent);
+}
+[data-theme="dark"] .qa-conversation-item.current {
+  background: var(--accent-subtle);
+  border-color: transparent;
+}
+
+[data-theme="dark"] #agent-input {
+  color: var(--ink);
+}
+
+[data-theme="dark"] .notes-panel,
+[data-theme="dark"] .notes-item,
+[data-theme="dark"] .notes-form textarea,
+[data-theme="dark"] .notes-form input,
+[data-theme="dark"] .notes-form select,
+[data-theme="dark"] .notes-dock,
+[data-theme="dark"] .notes-toolbar,
+[data-theme="dark"] .notes-index,
+[data-theme="dark"] .notes-detail,
+[data-theme="dark"] .note-card,
+[data-theme="dark"] .index-row,
+[data-theme="dark"] .notes-extra-head {
+  background: transparent;
+  color: var(--ink);
+}
+[data-theme="dark"] .notes-panel-title,
+[data-theme="dark"] .notes-form textarea,
+[data-theme="dark"] .notes-form input,
+[data-theme="dark"] .notes-form select,
+[data-theme="dark"] .note-quote,
+[data-theme="dark"] .detail-head,
+[data-theme="dark"] .note-card-time,
+[data-theme="dark"] .index-summary {
+  color: var(--ink);
+}
+[data-theme="dark"] .index-row.selected {
+  background: var(--accent-subtle);
+}
+[data-theme="dark"] .note-quote {
+  background: var(--bg-deep);
+  border-left-color: var(--accent);
+}
+[data-theme="dark"] .notes-detail-empty,
+[data-theme="dark"] .note-empty-hint {
+  color: var(--faint);
+}
+[data-theme="dark"] .note-editor textarea {
+  background: var(--bg-deep);
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+[data-theme="dark"] .note-editor-toolbar {
+  background: transparent;
+  border-color: var(--line);
+}
+
+/* —— 设置与产物 —— */
+
+[data-theme="dark"] .settings-card,
+[data-theme="dark"] .settings-dialog,
+[data-theme="dark"] .art-detail {
+  background: var(--surface);
+  border-color: var(--line);
+}
+[data-theme="dark"] .art-item {
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--ink);
+}
+[data-theme="dark"] .art-item:hover {
+  background: var(--bg-deep);
+  border-color: var(--line-strong);
+}
+[data-theme="dark"] .art-item.current {
+  background: var(--accent-subtle);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+[data-theme="dark"] .theme-dot {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+/* —— 弹层/提示 —— */
+
+[data-theme="dark"] .reader-toast {
+  background: #26262b;
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+}
+
+/* ============================================================
+   强调色预设:只覆盖 accent 语义变量,不动纸面与文字对比。
+   浅色取可承载白字的深色;深色取明亮的 accent。
+   ============================================================ */
+
+[data-accent="violet"] {
+  --accent: #7c3aed;
+  --accent-hover: #6d28d9;
+  --accent-subtle: #f3e8ff;
+  --focus: #7c3aed;
+}
+[data-accent="teal"] {
+  --accent: #0d9488;
+  --accent-hover: #0f766e;
+  --accent-subtle: #ccfbf1;
+  --focus: #0d9488;
+}
+[data-accent="emerald"] {
+  --accent: #059669;
+  --accent-hover: #047857;
+  --accent-subtle: #d1fae5;
+  --focus: #059669;
+}
+[data-accent="amber"] {
+  --accent: #b45309;
+  --accent-hover: #92400e;
+  --accent-subtle: #fef3c7;
+  --focus: #b45309;
+}
+[data-accent="rose"] {
+  --accent: #e11d48;
+  --accent-hover: #be123c;
+  --accent-subtle: #ffe4e6;
+  --focus: #e11d48;
+}
+[data-accent="sky"] {
+  --accent: #0284c7;
+  --accent-hover: #0369a1;
+  --accent-subtle: #e0f2fe;
+  --focus: #0284c7;
+}
+[data-accent="slate"] {
+  --accent: #475569;
+  --accent-hover: #334155;
+  --accent-subtle: #f1f5f9;
+  --focus: #475569;
+}
+
+[data-theme="dark"][data-accent="indigo"] {
+  --accent: #8f8ff2;
+  --accent-hover: #a5a5f7;
+  --accent-subtle: #26264a;
+  --focus: #8f8ff2;
+}
+[data-theme="dark"][data-accent="violet"] {
+  --accent: #a78bfa;
+  --accent-hover: #c4b5fd;
+  --accent-subtle: #2e1a47;
+  --focus: #a78bfa;
+}
+[data-theme="dark"][data-accent="teal"] {
+  --accent: #2dd4bf;
+  --accent-hover: #5eead4;
+  --accent-subtle: #113b36;
+  --focus: #2dd4bf;
+}
+[data-theme="dark"][data-accent="emerald"] {
+  --accent: #34d399;
+  --accent-hover: #6ee7b7;
+  --accent-subtle: #0f3327;
+  --focus: #34d399;
+}
+[data-theme="dark"][data-accent="amber"] {
+  --accent: #fbbf24;
+  --accent-hover: #fcd34d;
+  --accent-subtle: #3a2a0a;
+  --focus: #fbbf24;
+}
+[data-theme="dark"][data-accent="rose"] {
+  --accent: #fb7185;
+  --accent-hover: #fda4af;
+  --accent-subtle: #3f1521;
+  --focus: #fb7185;
+}
+[data-theme="dark"][data-accent="sky"] {
+  --accent: #38bdf8;
+  --accent-hover: #7dd3fc;
+  --accent-subtle: #0c2d44;
+  --focus: #38bdf8;
+}
+[data-theme="dark"][data-accent="slate"] {
+  --accent: #94a3b8;
+  --accent-hover: #cbd5e1;
+  --accent-subtle: #242a33;
+  --focus: #94a3b8;
+}
+
+@supports (background: color-mix(in srgb, white 10%, transparent)) {
+  ::selection {
+    background: color-mix(in srgb, var(--accent) 24%, transparent);
+  }
+}
+
+/* 主题/强调色切换:只过渡颜色,避免布局抖动。 */
+body,
+.top-bar,
+.dock-panel,
+.dock-tab,
+.tab-strip,
+.doc-tab,
+.btn,
+.icon-btn,
+.reader-toolbar,
+.agent-input-container,
+.notes-toolbar,
+.qa-message,
+.notes-item,
+.art-item,
+.settings-card {
+  transition:
+    background-color 220ms var(--ease-out),
+    border-color 220ms var(--ease-out),
+    color 180ms var(--ease-out),
+    box-shadow 220ms var(--ease-out);
+}

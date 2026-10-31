@@ -1,0 +1,263 @@
+/* 动态卡片:浅色表面 + 细边框 + 12px 圆角;整卡可点,内部动作仍可键盘到达。 */
+
+.insight-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  margin: 2px 0;
+}
+
+.insight-cards.skeleton,
+.insight-cards.error {
+  padding: 8px 10px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 11.5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.insight-retry {
+  padding: 1px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--accent-hover);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.insight-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: none;
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+
+.insight-card.clickable:hover {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
+}
+
+/* 整卡命中层:覆盖非交互内容;内部按钮用 z-index:2 保持可点。 */
+.insight-card-hit {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 0;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.insight-card-hit:hover {
+  background: color-mix(in srgb, var(--accent) 2.5%, transparent);
+}
+
+.insight-card-hit:focus-visible {
+  outline: 2px solid var(--focus, var(--accent));
+  outline-offset: 1px;
+}
+
+.insight-card-head,
+.insight-card-subtitle,
+.insight-card-items,
+.insight-card-foot {
+  position: relative;
+  min-width: 0;
+}
+
+.insight-card-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.insight-card-head h4 {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.insight-origin {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 9.5px;
+  font-weight: 500;
+}
+
+.insight-origin.origin-extractive {
+  color: var(--faint);
+}
+
+.insight-refresh {
+  position: relative;
+  z-index: 2;
+  margin-left: auto;
+  opacity: 0.6;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+
+.insight-card:hover .insight-refresh,
+.insight-refresh:focus-visible {
+  opacity: 1;
+}
+
+.insight-card-subtitle {
+  margin: -2px 0 0;
+  font-size: 11px;
+  color: var(--faint);
+}
+
+.insight-card-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.insight-card-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+
+.insight-card-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.insight-badge {
+  flex-shrink: 0;
+  margin-top: 1px;
+  padding: 0 5px;
+  border: 1px solid color-mix(in srgb, var(--warn) 26%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--warn) 7%, transparent);
+  color: var(--warn);
+  font-size: 9.5px;
+  line-height: 1.6;
+}
+
+.insight-evidence {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  padding: 0 2px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--faint);
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+.insight-evidence:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.insight-source-hint {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--faint);
+  font-size: 10.5px;
+}
+
+.insight-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+
+.insight-source-range {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--faint);
+  font-size: 10px;
+}
+
+.insight-card-actions {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.insight-action {
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.insight-action:hover {
+  border-color: var(--line);
+  background: var(--bg-deep);
+  color: var(--ink);
+}
+
+.insight-error {
+  margin: 0;
+  font-size: 11px;
+  color: var(--warn);
+}
+
+.insight-cards.compact .insight-card {
+  padding: 9px 11px;
+}
+
+/* 卡片始终跟随聊天列宽度(单列);不再固定 560px 或宽栏两列。 */
+.insight-cards {
+  align-items: stretch;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .insight-card,
+  .insight-refresh {
+    transition: none;
+  }
+}

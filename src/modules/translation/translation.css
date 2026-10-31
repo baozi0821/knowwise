@@ -1,0 +1,18 @@
+.translation-view { display: flex; flex-direction: column; gap: 8px; }
+.translation-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--text-muted, #64748b); flex-wrap: wrap; }
+.translation-mode { display: flex; gap: 4px; }
+.translation-coverage { font-size: 11px; margin: 0; color: #047857; }
+.translation-coverage.partial { color: #b45309; }
+.translation-note { font-size: 11px; margin: 0; color: #b45309; }
+.translation-segments { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.translation-segment { border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 8px; padding: 8px 10px; }
+.translation-segment.status-low_confidence { border-color: rgba(245, 158, 11, 0.55); }
+.translation-segment.status-failed { border-color: rgba(220, 38, 38, 0.45); }
+.translation-meta { font-size: 10px; color: var(--text-muted, #64748b); margin-bottom: 4px; }
+.translation-source { margin: 0 0 4px; font-size: 12px; color: var(--text-muted, #475569); white-space: pre-wrap; }
+.translation-target { display: block; width: 100%; text-align: left; border: none; background: transparent; font-size: 13px; color: var(--text, #0f172a); white-space: pre-wrap; cursor: pointer; padding: 0; }
+.translation-target:hover { color: #4f46e5; text-decoration: underline; }
+.translation-failed { font-size: 12px; color: #b91c1c; margin: 0; }
+.translation-glossary { font-size: 11px; color: var(--text-muted, #64748b); }
+.translation-glossary ul { margin: 4px 0 0; padding-left: 18px; }
+.translation-error { font-size: 11px; color: #b91c1c; }
