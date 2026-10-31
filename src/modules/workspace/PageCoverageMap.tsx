@@ -44,6 +44,11 @@ export function buildPageMap(
   mark(coverage?.missingRegions, "missing");
 
   for (const row of ocr ?? []) {
+    if (row.status === "skipped") {
+      // skipped = 文本层合格,不需要 OCR;算作已覆盖。
+      pages.set(row.pageNumber, "covered");
+      continue;
+    }
     const low = row.status === "low_confidence";
     const done = row.status === "completed" || low;
     if (!done) continue;
@@ -88,22 +93,37 @@ export function PageCoverageBar({
   parseCoverage,
   ocr,
   activeRange,
+  pageCount,
 }: {
   coverage?: CoverageSummary;
   /** 文档级解析覆盖(无快照时使用)。 */
   parseCoverage?: CoverageView;
   ocr?: readonly PageOcrStatusView[];
   activeRange?: { start: number; end: number } | null;
+  /** PDF 真实页数；用于把没有 coverage/OCR 行的页显示为缺失。 */
+  pageCount?: number;
 }): ReactNode {
   const [open, setOpen] = useState(false);
   const bodyId = useId();
-  const entries = buildPageMap(coverage ?? coverageFromParse(parseCoverage), ocr);
+  const mapped = buildPageMap(coverage ?? coverageFromParse(parseCoverage), ocr);
+  const knownPages = new Set(mapped.map((entry) => entry.page));
+  const effectivePageCount =
+    pageCount !== undefined && pageCount > 0
+      ? Math.max(pageCount, ...mapped.map((entry) => entry.page), 0)
+      : 0;
+  const missingPages = Array.from({ length: effectivePageCount }, (_, index) => index + 1)
+    .filter((page) => !knownPages.has(page))
+    .map((page) => ({ page, state: "missing" as const, label: STATE_LABELS.missing }));
+  const entries = [...mapped, ...missingPages].sort((a, b) => a.page - b.page);
   if (entries.length === 0) return null;
   const covered = entries.filter(
     (entry) => entry.state === "covered" || entry.state === "ocr",
   ).length;
   const effective = coverage ?? coverageFromParse(parseCoverage);
-  const completeness = effective?.scopeCovered === false ? "部分" : "完整";
+  const completeness =
+    effective?.scopeCovered === false || entries.some((entry) => entry.state === "missing")
+      ? "部分"
+      : "完整";
   const rangeLabel =
     activeRange !== undefined && activeRange !== null
       ? activeRange.start === activeRange.end

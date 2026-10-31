@@ -59,6 +59,7 @@ export async function runPdfOcr({
   shouldStop,
   shouldPause,
   results: externalResults,
+  recognize = true,
 }: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   pdfDoc: any;
@@ -74,6 +75,11 @@ export async function runPdfOcr({
   shouldPause?: () => Promise<boolean> | boolean;
   /** 调用方持有的结果表:即使中途上报失败退出,已完成页仍保留供落库。 */
   results?: Map<number, OcrPageResult>;
+  /**
+   * false = 只做文本层质量评估与状态上报，不启动 Tesseract。
+   * 自动 OCR 关闭时使用；缺失页保持 pending，等待手动/后续识别。
+   */
+  recognize?: boolean;
 }): Promise<Map<number, OcrPageResult>> {
   const results = externalResults ?? new Map<number, OcrPageResult>();
   const quality = new Map<number, PdfPageQuality>();
@@ -102,6 +108,7 @@ export async function runPdfOcr({
       return a.pageNumber - b.pageNumber;
     });
   if (pending.length === 0) return results;
+  if (!recognize) return results;
 
   let session: OcrSession | null = null;
   let engineFailure: string | null = null;

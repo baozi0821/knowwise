@@ -381,6 +381,11 @@ pub struct PageOcrStatusView {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub engine_version: Option<String>,
+    /// 该页状态所属的解析代次。新代次尚未重新上报时应视为 stale，
+    /// 不能把旧代次的 completed 当成当前代次已覆盖。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub generation_id: Option<String>,
     #[ts(type = "number")]
     pub updated_at: i64,
     #[serde(skip_serializing_if = "Option::is_none")]

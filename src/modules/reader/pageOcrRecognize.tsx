@@ -17,6 +17,7 @@ import {
   recognizePages,
   stopActiveParse,
 } from "./pageOcrRecognition";
+import { registerOcrRun, updateOcrProgress } from "./pageOcrRuntime";
 
 const STATUS_LABELS: Record<string, string> = {
   pending: "排队",
@@ -65,6 +66,7 @@ export function PageOcrRecognizeDialog({
     total: number;
   } | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
+  const [force, setForce] = useState(false);
   const stopRef = useRef(false);
   const closedRef = useRef(false);
   const runningRef = useRef(false);
@@ -108,7 +110,7 @@ export function PageOcrRecognizeDialog({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [requestClose]);
 
-  async function start(): Promise<void> {
+  async function start(pagesOverride?: readonly number[]): Promise<void> {
     if (bytes === null) {
       setError("正文尚未加载完成,请稍后再试。");
       return;
@@ -117,7 +119,10 @@ export function PageOcrRecognizeDialog({
       setError("上一次识别仍在后台收尾,请稍候再开始");
       return;
     }
-    const check = parsePageSpec(spec, pageCount);
+    const check =
+      pagesOverride !== undefined
+        ? parsePageSpec(formatPageSelection(pagesOverride), pageCount)
+        : parsePageSpec(spec, pageCount);
     if (check.error !== null) {
       setError(check.error);
       return;
@@ -129,6 +134,7 @@ export function PageOcrRecognizeDialog({
     setProgress(null);
     stopRef.current = false;
     closedRef.current = false;
+    let unregisterRun: (() => void) | null = null;
     try {
       let stoppedTask: string | null = null;
       // 打开对话框后全文识别可能才开始:开始识别前再查一次,避免同代次并发写入。
@@ -139,26 +145,58 @@ export function PageOcrRecognizeDialog({
         setStopping(false);
         setActiveParse(null);
       }
+      // 新的显式识别从“未暂停”开始，避免上一次暂停信号让本次空等。
+      await client
+        .call("page_ocr_resume", { documentId, versionId })
+        .catch(() => undefined);
+      // 只把当前代次视为已覆盖;旧代次的 completed 需要重跑。
+      const parseStatus = await client
+        .call<{ generationId?: string }>("parse_get_status", { documentId })
+        .catch(() => null);
+      unregisterRun = registerOcrRun(documentId, versionId, () => {
+        stopRef.current = true;
+      });
       const result = await recognizePages({
         client,
         documentId,
         versionId,
         bytes,
         pageNumbers: check.pages,
+        force,
+        currentGenerationId: parseStatus?.generationId,
         shouldStop: () => stopRef.current,
-        onProgress: (entry) => setProgress(entry),
+        shouldPause: async () => {
+          try {
+            const control = await client.call<{ paused: boolean }>("page_ocr_control_get", {
+              documentId,
+              versionId,
+            });
+            return control.paused;
+          } catch {
+            return false;
+          }
+        },
+        onProgress: (entry) => {
+          updateOcrProgress(documentId, versionId, entry);
+          setProgress(entry);
+        },
       });
-      if (!(closedRef.current && result.saved.length === 0)) {
+      if (result.saved.length > 0) {
         onSaved(result.saved);
-      } else {
+      } else if (closedRef.current) {
         onBackgroundNotice?.("后台识别已停止,没有新的识别页需要保存。", "info");
       }
       const failed = result.saved.filter((status) => status.status === "failed").length;
       setSummary(
         [
-          result.saved.length > 0
-            ? `已保存 ${result.saved.length} 页识别结果`
-            : "没有需要保存的识别结果",
+          result.recognized.length > 0
+            ? `本次识别并保存 ${result.recognized.length} 页`
+            : result.skipped.length > 0
+              ? "所选页均已有文本层,无需 OCR"
+              : "没有需要识别的新页",
+          result.alreadyDone.length > 0
+            ? `${result.alreadyDone.length} 页已识别,已幂等跳过`
+            : null,
           result.skipped.length > 0 ? `${result.skipped.length} 页有文本层已跳过` : null,
           failed > 0 ? `${failed} 页未识别到文字(未伪造文本)` : null,
           result.notProcessed.length > 0 ? `${result.notProcessed.length} 页因停止未处理` : null,
@@ -191,6 +229,7 @@ export function PageOcrRecognizeDialog({
         setError(caught instanceof Error ? caught.message : "识别失败,请重试");
       }
     } finally {
+      unregisterRun?.();
       runningRef.current = false;
       setRunning(false);
       setStopping(false);
@@ -203,6 +242,17 @@ export function PageOcrRecognizeDialog({
 
   const specPages = parsed.pages;
   const pageLabel = progress !== null ? `第 ${progress.pageNumber} 页` : "";
+  const aroundPages = Array.from({ length: 5 }, (_, index) => currentPage - 2 + index).filter(
+    (page) => page >= 1 && (pageCount === 0 || page <= pageCount),
+  );
+  const firstTenPages = Array.from(
+    { length: Math.min(10, pageCount || 10) },
+    (_, index) => index + 1,
+  );
+  function quickStart(pages: number[]): void {
+    setSpec(formatPageSelection(pages));
+    void start(pages);
+  }
 
   return createPortal(
     <div className="kw-confirm-overlay" role="presentation">
@@ -251,42 +301,25 @@ export function PageOcrRecognizeDialog({
               type="button"
               className="btn tiny ghost"
               disabled={running}
-              onClick={() => setSpec(formatPageSelection([currentPage]))}
+              onClick={() => quickStart([currentPage])}
             >
-              当前页
+              识别当前页
             </button>
             <button
               type="button"
               className="btn tiny ghost"
               disabled={running}
-              onClick={() =>
-                setSpec(
-                  formatPageSelection(
-                    Array.from({ length: 5 }, (_, index) => currentPage - 2 + index).filter(
-                      (page) => page >= 1 && (pageCount === 0 || page <= pageCount),
-                    ),
-                  ),
-                )
-              }
+              onClick={() => quickStart(aroundPages)}
             >
-              当前页±2
+              识别当前页±2
             </button>
             <button
               type="button"
               className="btn tiny ghost"
               disabled={running}
-              onClick={() =>
-                setSpec(
-                  formatPageSelection(
-                    Array.from(
-                      { length: Math.min(10, pageCount || 10) },
-                      (_, index) => index + 1,
-                    ),
-                  ),
-                )
-              }
+              onClick={() => quickStart(firstTenPages)}
             >
-              前 10 页
+              识别前 10 页
             </button>
           </div>
         </div>
@@ -301,8 +334,19 @@ export function PageOcrRecognizeDialog({
             </span>
           )}
         </p>
-        {activeParse !== null ? (
-          <p className="ocr-recognize-warning" role="alert">
+        <label className="settings-check ocr-recognize-force">
+          <input
+            type="checkbox"
+            checked={force}
+            disabled={running}
+            onChange={(event) => {
+              setForce(event.target.checked);
+              setSummary(null);
+            }}
+          />
+          重新识别已识别页(默认只补缺失/失败页;不会产生重复块)
+        </label>
+        {activeParse !== null ? (          <p className="ocr-recognize-warning" role="alert">
             全文识别仍在进行。识别所选页会先停止全文识别;已完成识别的页会先保存,
             只有停止瞬间尚未识别完成的当前页需要重试。
           </p>

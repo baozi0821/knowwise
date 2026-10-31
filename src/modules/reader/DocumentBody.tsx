@@ -7,10 +7,15 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import DOMPurify from "dompurify";
 import type { CommandClient } from "../../app/api/client";
-import type { RenderPlan } from "../../shared/generated/RenderPlan";
+import { qk } from "../../app/api/keys";
+import type { ModelSettingsView } from "../../shared/generated/ModelSettingsView";
 import type { PageOcrStatusView } from "../../shared/generated/PageOcrStatusView";
+import type { ParseStatusView } from "../../shared/generated/ParseStatusView";
+import type { RenderPlan } from "../../shared/generated/RenderPlan";
 import type { SourceLocator } from "../../shared/generated/SourceLocator";
 import { bytesToText, readAllDocumentBytes } from "./documentBytes";
+import { hasActiveSelectedPageOcr, recognizePagesChunked } from "./pageOcrRecognition";
+import { isOcrRunActive, registerOcrRun, updateOcrProgress } from "./pageOcrRuntime";
 import { loadPdfDocument } from "./pdfDocument";
 import { createPositionSaver, type PositionSaver } from "./position";
 import type { ReaderPrefs } from "./readerPrefs";
@@ -149,23 +154,183 @@ export function DocumentBody({
   const ocrByPage = new Map(
     (pageOcr.data ?? []).map((row) => [row.pageNumber, row] as const),
   );
+  const parseStatus = useQuery({
+    queryKey: qk.parseStatus(plan.documentId),
+    queryFn: () => client.call<ParseStatusView>("parse_get_status", { documentId: plan.documentId }),
+    enabled: plan.format === "pdf",
+    staleTime: 1_000,
+    refetchInterval: (query) =>
+      query.state.data?.parseState === "in_progress" ? 1_500 : false,
+  });
+  const appSettings = useQuery({
+    queryKey: ["settings"],
+    queryFn: () => client.call<ModelSettingsView>("settings_get", {}),
+    enabled: plan.format === "pdf",
+    staleTime: 30_000,
+  });
+  const pageOcrRef = useRef(pageOcr.data);
+  pageOcrRef.current = pageOcr.data;
+  const autoOcrAttempts = useRef<Set<string>>(new Set());
 
-  async function reprocessOcr(): Promise<void> {
-    setOcrBusy(true);
-    setOcrError(null);
+  async function shouldPauseOcr(): Promise<boolean> {
     try {
-      await client.call("page_ocr_reprocess", {
+      const control = await client.call<{ paused: boolean }>("page_ocr_control_get", {
         documentId: plan.documentId,
         versionId: plan.versionId,
-        idempotencyKey: client.newIdempotencyKey(),
       });
-      await queryClient.invalidateQueries({ queryKey: ["page-ocr", plan.versionId] });
-    } catch (error) {
-      setOcrError(error instanceof Error ? error.message : "重新识别提交失败");
-    } finally {
-      setOcrBusy(false);
+      return control.paused;
+    } catch {
+      return false;
     }
   }
+
+  async function reprocessOcr(): Promise<void> {
+    const bytesData = bytes.data;
+    const bundle = pdfBundle.data;
+    if (bytesData === undefined || bundle === undefined) {
+      setOcrError("正文尚未加载完成,无法重新识别。");
+      return;
+    }
+    setOcrBusy(true);
+    setOcrError(null);
+    let stopped = false;
+    const cleanup = registerOcrRun(plan.documentId, plan.versionId, () => {
+      stopped = true;
+    });
+    try {
+      // 显式重识别从“未暂停”开始；上一次暂停信号不应让本次空等。
+      await client
+        .call("page_ocr_resume", { documentId: plan.documentId, versionId: plan.versionId })
+        .catch(() => undefined);
+      // 逐页重识别:不再新建 parse generation，也不清空其它页的 OCR。
+      await recognizePagesChunked({
+        client,
+        documentId: plan.documentId,
+        versionId: plan.versionId,
+        bytes: bytesData,
+        pageNumbers: bundle.pages.map((page) => page.pageNumber),
+        force: true,
+        currentGenerationId: parseStatus.data?.generationId,
+        existingStatuses: pageOcr.data,
+        shouldStop: () => stopped,
+        shouldPause: shouldPauseOcr,
+        onProgress: (progress) =>
+          updateOcrProgress(plan.documentId, plan.versionId, progress),
+      });
+      await queryClient.invalidateQueries({ queryKey: ["page-ocr", plan.versionId] });
+      await queryClient.invalidateQueries({ queryKey: qk.parseStatus(plan.documentId) });
+    } catch (error) {
+      setOcrError(error instanceof Error ? error.message : "重新识别失败");
+    } finally {
+      cleanup();
+      setOcrBusy(false);
+      await queryClient.invalidateQueries({ queryKey: ["page-ocr", plan.versionId] });
+    }
+  }
+
+  // 自动 OCR：解析已终态且自动 OCR 开启时，补识别无状态/pending/旧代次的页。
+  // 每个 version+generation 每个应用会话最多自动尝试一次；failed 页只做手动重试。
+  useEffect(() => {
+    if (plan.format !== "pdf") return;
+    if (bytes.data === undefined || pdfBundle.data === undefined) return;
+    if (parseStatus.isLoading || appSettings.isLoading) return;
+    const state = parseStatus.data?.parseState;
+    if (state === undefined || state === "not_started" || state === "in_progress") return;
+    if (parseStatus.data?.activeTaskId !== undefined) return;
+    const autoOcr = appSettings.data?.settings.autoOcr ?? true;
+    if (!autoOcr || ocrBusy) return;
+    if (!pageOcr.isFetched) return;
+    const statuses = pageOcrRef.current;
+    if (statuses === undefined) return;
+    const generationId = parseStatus.data?.generationId;
+    const pageCount = pdfBundle.data.pages.length;
+    if (pageCount <= 0) return;
+    const byPage = new Map(statuses.map((row) => [row.pageNumber, row] as const));
+    const missing: number[] = [];
+    for (let page = 1; page <= pageCount; page += 1) {
+      const row = byPage.get(page);
+      if (row === undefined) {
+        missing.push(page);
+        continue;
+      }
+      const stale =
+        generationId !== undefined &&
+        row.generationId !== undefined &&
+        row.generationId !== generationId;
+      if (stale || row.status === "pending" || row.status === "rendering" || row.status === "ocr_running") {
+        missing.push(page);
+      }
+    }
+    if (missing.length === 0) return;
+    const attemptKey = `${plan.versionId}:${generationId ?? "none"}`;
+    if (autoOcrAttempts.current.has(attemptKey)) return;
+    if (
+      isOcrRunActive(plan.documentId, plan.versionId) ||
+      hasActiveSelectedPageOcr()
+    ) {
+      return;
+    }
+    autoOcrAttempts.current.add(attemptKey);
+    let stopped = false;
+    const cleanup = registerOcrRun(plan.documentId, plan.versionId, () => {
+      stopped = true;
+    });
+    void recognizePagesChunked({
+      client,
+      documentId: plan.documentId,
+      versionId: plan.versionId,
+      bytes: bytes.data,
+      pageNumbers: missing,
+      currentGenerationId: generationId,
+      existingStatuses: statuses,
+      shouldStop: () => stopped,
+      shouldPause: shouldPauseOcr,
+      onProgress: (progress) => {
+        updateOcrProgress(plan.documentId, plan.versionId, progress);
+        if (
+          progress.status === "completed" ||
+          progress.status === "low_confidence" ||
+          progress.status === "failed" ||
+          progress.status === "skipped"
+        ) {
+          void queryClient.invalidateQueries({ queryKey: ["page-ocr", plan.versionId] });
+        }
+      },
+    })
+      .then(() => {
+        if (!stopped) {
+          void queryClient.invalidateQueries({ queryKey: ["page-ocr", plan.versionId] });
+          void queryClient.invalidateQueries({ queryKey: qk.parseStatus(plan.documentId) });
+        }
+      })
+      .catch((error: unknown) => {
+        if (!stopped) {
+          setOcrError(error instanceof Error ? error.message : "自动 OCR 失败");
+        }
+      })
+      .finally(() => {
+        cleanup();
+      });
+    return () => {
+      stopped = true;
+      cleanup();
+    };
+  }, [
+    plan.documentId,
+    plan.versionId,
+    plan.format,
+    bytes.data,
+    pdfBundle.data,
+    parseStatus.isLoading,
+    parseStatus.data?.parseState,
+    parseStatus.data?.generationId,
+    appSettings.isLoading,
+    appSettings.data?.settings.autoOcr,
+    pageOcr.isFetched,
+    ocrBusy,
+    client,
+    queryClient,
+  ]);
 
   if (bytes.isLoading) {
     return (
@@ -280,6 +445,7 @@ export function DocumentBody({
           client={client}
           documentTitle={documentTitle}
           pageOcr={ocrByPage}
+          ocrGenerationId={parseStatus.data?.generationId}
           onReprocessOcr={() => void reprocessOcr()}
           ocrBusy={ocrBusy}
           pdfBytes={bytes.data ?? null}

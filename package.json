@@ -1,7 +1,7 @@
 {
   "name": "knowwise",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Local-first AI document reader for PDF, Markdown and DOCX.",
   "license": "MIT",
   "author": "Knowwise contributors",
@@ -38,6 +38,7 @@
     "models:install": "node scripts/install-models.mjs",
     "models:check": "node scripts/install-models.mjs --check",
     "notices": "node scripts/third-party-notices.mjs",
+    "e2e:ocr": "node scripts/e2e-ocr-incremental.mjs",
     "tauri": "tauri"
   },
   "dependencies": {
