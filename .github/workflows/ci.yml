@@ -56,6 +56,14 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+      - name: Migration SQL line endings
+        if: runner.os == 'Windows'
+        run: |
+          git ls-files --eol src-tauri/migrations
+          if git ls-files --eol src-tauri/migrations | grep -E 'w/crlf|w/mixed'; then
+            echo "::error::src-tauri/migrations must be checked out with LF line endings"
+            exit 1
+          fi
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -102,6 +110,14 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+      - name: Migration SQL line endings
+        if: runner.os == 'Windows'
+        run: |
+          git ls-files --eol src-tauri/migrations
+          if git ls-files --eol src-tauri/migrations | grep -E 'w/crlf|w/mixed'; then
+            echo "::error::src-tauri/migrations must be checked out with LF line endings"
+            exit 1
+          fi
       - uses: actions/setup-node@v4
         with:
           node-version: 22

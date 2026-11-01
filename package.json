@@ -1,7 +1,7 @@
 {
   "name": "knowwise",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Local-first AI document reader for PDF, Markdown and DOCX.",
   "license": "MIT",
   "author": "Knowwise contributors",
