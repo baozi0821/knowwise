@@ -324,6 +324,7 @@ export function DocumentBody({
     parseStatus.isLoading,
     parseStatus.data?.parseState,
     parseStatus.data?.generationId,
+    parseStatus.data?.activeTaskId,
     appSettings.isLoading,
     appSettings.data?.settings.autoOcr,
     pageOcr.isFetched,
